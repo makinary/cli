@@ -1,0 +1,9 @@
+# Ignore service directories (downloaded dynamically)
+market-fit/
+API/
+Workflows/
+node_modules/
+
+# Environment
+.env
+.DS_Store
