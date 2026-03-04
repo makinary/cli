@@ -7,8 +7,14 @@ Este repositorio es el punto de entrada para desarrolladores. Automatiza la conf
 *   **Market Fit** (Frontend - Next.js)
 *   **API** (Backend - Next.js API Routes)
 *   **Workflows** (Motor de Procesos - Temporal + Node.js)
-*   Conexiones cruzadas (CORS, URLs de API, Puertos)
-*   Generación de archivos `.env` interactiva.
+*   **Base de Datos Local** (Supabase + Docker) - *¡Opcional y Automático!*
+
+El instalador resuelve automáticamente:
+*   Instalación de dependencias (Docker, Supabase CLI, Node.js).
+*   Inicio de servicios (Docker Desktop).
+*   Clonado de repositorios.
+*   Configuración de variables de entorno `.env` cruzadas (URLs de API, CORS, Puertos).
+*   Inyección de credenciales de Supabase local en todos los servicios.
 
 ## 🚀 Instalación Rápida
 
@@ -23,7 +29,10 @@ Este repositorio es el punto de entrada para desarrolladores. Automatiza la conf
     ./install.sh
     ```
 
-3.  Sigue las instrucciones en pantalla para configurar puertos y claves (Supabase, OpenAI, etc.).
+3.  Sigue las instrucciones en pantalla. El asistente te preguntará:
+    *   Si quieres usar **Supabase Local** (recomendado para desarrollo) o conectar a una instancia en la nube.
+    *   Qué puertos prefieres para cada servicio (o usar los predeterminados).
+    *   Claves de API opcionales (OpenAI, Anthropic, Gemini).
 
 ## 📦 Estructura Resultante
 
@@ -31,19 +40,37 @@ Al finalizar, tendrás una estructura de carpetas como esta:
 
 ```
 makinari-installer/
-├── install.sh      # El script de instalación (este repo)
-├── market-fit/     # Repositorio Frontend clonado
-├── API/            # Repositorio API clonado
-└── Workflows/      # Repositorio Workflows clonado
+├── install.sh          # El script maestro
+├── market-fit/         # Frontend
+├── API/                # Backend
+├── Workflows/          # Motor de procesos
+└── makinari-db-scheme/ # Esquema de BD y Migraciones (solo si usas BD local)
 ```
 
-## 🛠 Comandos Útiles
+## 🛠 Requisitos Previos
 
-Una vez instalado todo, puedes iniciar los servicios individualmente entrando en cada carpeta:
+El instalador intentará instalar automáticamente lo que falte (en macOS), pero idealmente deberías tener:
+*   Git
+*   Node.js (v18+)
+*   Docker Desktop (para BD local)
 
-*   **Frontend:** `cd market-fit && npm run dev`
-*   **API:** `cd API && npm run dev`
-*   **Workflows:** `cd Workflows && npm run dev`
+## 🏃‍♂️ Cómo Iniciar
+
+Una vez completada la instalación, inicia cada servicio en una terminal separada:
+
+1.  **Frontend:** `cd market-fit && npm run dev`
+    *(Por defecto en http://localhost:3000)*
+
+2.  **API:** `cd API && npm run dev`
+    *(Por defecto en http://localhost:3001)*
+
+3.  **Workflows:** `cd Workflows && npm run dev`
+    *(Por defecto en http://localhost:3002)*
+
+4.  **Base de Datos (si es local):**
+    El instalador ya la habrá dejado corriendo. Puedes ver el dashboard en `http://localhost:54323`.
+    Para detenerla: `cd makinari-db-scheme && supabase stop`
+    Para iniciarla de nuevo: `cd makinari-db-scheme && supabase start`
 
 ## 🤝 Contribuir
 

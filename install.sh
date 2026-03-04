@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Makinari Interactive Installer (Wizard) v2
+# Makinari Interactive Installer (Wizard) v3
 # Installs and configures Market Fit, API, and Workflows services with Cross-Dependency Resolution
+# & Automatic Docker/Supabase Setup
 
 set -e
 
@@ -10,6 +11,7 @@ INSTALL_DIR="$(pwd)"
 REPO_MARKET_FIT="https://github.com/Uncodier/market-fit.git"
 REPO_API="https://github.com/Uncodier/API.git"
 REPO_WORKFLOWS="https://github.com/Uncodier/workflows.git"
+REPO_DB_SCHEME="https://github.com/Uncodier/makinari-db-scheme.git"
 
 # --- Default Ports ---
 PORT_MARKET_FIT="3000"
@@ -60,6 +62,75 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+check_and_install_docker() {
+    log_info "Checking Docker installation..."
+    
+    if command_exists docker; then
+        log_success "Docker is installed."
+    else
+        log_warn "Docker is not installed."
+        
+        # Check OS
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            log_info "Detected macOS."
+            if command_exists brew; then
+                prompt_input "Install Docker via Homebrew? (y/n)" "y" INSTALL_DOCKER
+                if [ "$INSTALL_DOCKER" == "y" ]; then
+                    log_info "Installing Docker Desktop..."
+                    brew install --cask docker
+                    log_success "Docker installed. Opening Docker Desktop..."
+                    open -a Docker
+                else
+                    log_error "Docker is required for local database. Please install it manually."
+                    exit 1
+                fi
+            else
+                log_error "Homebrew not found. Please install Docker Desktop manually: https://www.docker.com/products/docker-desktop/"
+                exit 1
+            fi
+        else
+            log_error "Automatic Docker installation is only supported on macOS. Please install Docker manually."
+            exit 1
+        fi
+    fi
+
+    # Check if Docker Daemon is running
+    log_info "Checking if Docker Daemon is running..."
+    if ! docker info > /dev/null 2>&1; then
+        log_warn "Docker is not running. Attempting to start..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+             open -a Docker
+        fi
+        
+        log_info "Waiting for Docker to start (this may take a minute)...";
+        while ! docker info > /dev/null 2>&1; do
+            echo -n "."
+            sleep 2
+        done
+        echo ""
+        log_success "Docker is running!"
+    else
+        log_success "Docker is already running."
+    fi
+}
+
+check_and_install_supabase() {
+    log_info "Checking Supabase CLI..."
+    if command_exists supabase; then
+        log_success "Supabase CLI is installed."
+    else
+        log_warn "Supabase CLI is not installed."
+        if [[ "$OSTYPE" == "darwin"* ]] && command_exists brew; then
+             log_info "Installing Supabase CLI via Homebrew..."
+             brew install supabase/tap/supabase
+             log_success "Supabase CLI installed."
+        else
+             log_error "Please install Supabase CLI manually: https://supabase.com/docs/guides/cli"
+             exit 1
+        fi
+    fi
+}
+
 # --- Main Script ---
 
 clear
@@ -74,7 +145,7 @@ echo ""
 log_info "Checking prerequisites..."
 if ! command_exists git; then log_error "git is required but not installed."; exit 1; fi
 if ! command_exists npm; then log_error "npm is required but not installed."; exit 1; fi
-log_success "Prerequisites met."
+log_success "Basic tools met."
 echo ""
 
 # 2. Service Configuration (Wizard)
@@ -95,20 +166,55 @@ echo " - Workflows: $URL_WORKFLOWS"
 echo ""
 
 # 3. Database & AI Configuration
-log_info "Database & AI Configuration"
+log_info "Database Configuration"
 prompt_input "Use local Supabase? (y/n)" "n" USE_LOCAL_SUPABASE
 
+CFG_SUPABASE_URL=""
+CFG_SUPABASE_KEY=""
+
 if [ "$USE_LOCAL_SUPABASE" == "y" ]; then
-    DEFAULT_SUPABASE_URL="http://127.0.0.1:54321"
-    log_info "Using local Supabase defaults."
+    # Ensure Docker and Supabase CLI are ready
+    check_and_install_docker
+    check_and_install_supabase
+    
+    log_info "Setting up Local Database..."
+    
+    # Clone DB Scheme Repo
+    if [ ! -d "makinari-db-scheme" ]; then
+         log_info "Cloning Database Scheme..."
+         git clone "$REPO_DB_SCHEME" makinari-db-scheme
+    else
+         log_warn "makinari-db-scheme directory already exists. Updating..."
+         cd makinari-db-scheme && git pull && cd ..
+    fi
+    
+    log_info "Starting Supabase Local..."
+    cd makinari-db-scheme
+    supabase start
+    
+    # Extract Credentials
+    log_info "Extracting Local Credentials..."
+    STATUS_OUTPUT=$(supabase status)
+    
+    # Grep for URL and Key (Assuming standard output format)
+    CFG_SUPABASE_URL=$(echo "$STATUS_OUTPUT" | grep "API URL" | awk '{print $4}')
+    CFG_SUPABASE_KEY=$(echo "$STATUS_OUTPUT" | grep "service_role key" | awk '{print $4}')
+    
+    if [ -z "$CFG_SUPABASE_URL" ] || [ -z "$CFG_SUPABASE_KEY" ]; then
+        log_error "Failed to extract Supabase credentials. Please check 'supabase status' output."
+        exit 1
+    fi
+    
+    log_success "Local Database Ready!"
+    log_info "URL: $CFG_SUPABASE_URL"
+    cd ..
 else
-    DEFAULT_SUPABASE_URL=""
+    # Remote Database
+    prompt_input "Supabase URL" "" CFG_SUPABASE_URL
+    prompt_secret "Supabase Service Role Key" CFG_SUPABASE_KEY
 fi
 
-prompt_input "Supabase URL" "$DEFAULT_SUPABASE_URL" CFG_SUPABASE_URL
-prompt_secret "Supabase Service Role Key" CFG_SUPABASE_KEY
 echo ""
-
 log_info "AI Configuration (Leave empty to skip if not needed immediately)"
 prompt_secret "OpenAI API Key" CFG_OPENAI_KEY
 prompt_secret "Anthropic API Key" CFG_ANTHROPIC_KEY
@@ -216,10 +322,12 @@ echo -e "${BLUE}=======================================${NC}"
 echo -e "${GREEN}   Installation Complete!             ${NC}"
 echo -e "${BLUE}=======================================${NC}"
 echo "Services have been set up in $INSTALL_DIR"
+if [ "$USE_LOCAL_SUPABASE" == "y" ]; then
+    echo "Local Supabase is running at $CFG_SUPABASE_URL"
+    echo "Dashboard: http://localhost:54323"
+fi
 echo ""
 echo "To start the services (in separate terminals):"
-echo "1. Market Fit (Frontend):  cd market-fit && npm run dev (Port $CFG_PORT_MARKET_FIT)"
-echo "2. API Server:             cd API && npm run dev (Port $CFG_PORT_API)"
-echo "3. Workflows:              cd Workflows && npm run dev (Port $CFG_PORT_WORKFLOWS)"
-echo ""
-echo "Note: Check .env files in each directory if you need to add more specific keys."
+echo "1. Market Fit (Frontend):  cd market-fit && npm run dev"
+echo "2. API Server:             cd API && npm run dev"
+echo "3. Workflows:              cd Workflows && npm run dev"
