@@ -1,77 +1,89 @@
 # Makinari Installer (CLI)
 
-Un instalador "One-Liner" para desplegar el ecosistema completo de **Makinari** en tu entorno local.
+A "One-Liner" installer to deploy the complete **Makinari** ecosystem locally.
 
-Este repositorio es el punto de entrada para desarrolladores. Automatiza la configuración de:
+This repository is the entry point for developers. It automates the setup of:
 
 *   **Market Fit** (Frontend - Next.js)
 *   **API** (Backend - Next.js API Routes)
-*   **Workflows** (Motor de Procesos - Temporal + Node.js)
-*   **Base de Datos Local** (Supabase + Docker) - *¡Opcional y Automático!*
+*   **Workflows** (Process Engine - Temporal + Node.js)
+*   **Local Database** (Supabase + Docker) - *Optional & Automatic!*
+*   **Local Temporal Server** - *Optional & Automatic!*
 
-El instalador resuelve automáticamente:
-*   Instalación de dependencias (Docker, Supabase CLI, Node.js).
-*   Inicio de servicios (Docker Desktop).
-*   Clonado de repositorios.
-*   Configuración de variables de entorno `.env` cruzadas (URLs de API, CORS, Puertos).
-*   Inyección de credenciales de Supabase local en todos los servicios.
+The installer automatically handles:
+*   Dependency installation (Docker, Supabase CLI, Temporal CLI, Node.js packages).
+*   Service startup (Docker Desktop, Temporal Server).
+*   Repository cloning.
+*   Cross-environment variable configuration `.env` (API URLs, CORS, Ports).
+*   Credential injection for local Supabase and Temporal into all services.
+*   **Generation of a `start-dev.sh` script** to launch the entire stack with one command.
 
-## 🚀 Instalación Rápida
+## 🚀 Quick Install
 
-1.  Clona este repositorio:
+1.  Clone this repository:
     ```bash
-    git clone https://github.com/Uncodier/makinari-installer.git
-    cd makinari-installer
+    git clone https://github.com/makinary/cli.git
+    cd cli
     ```
 
-2.  Ejecuta el asistente interactivo:
+2.  Run the interactive wizard:
     ```bash
     ./install.sh
     ```
 
-3.  Sigue las instrucciones en pantalla. El asistente te preguntará:
-    *   Si quieres usar **Supabase Local** (recomendado para desarrollo) o conectar a una instancia en la nube.
-    *   Qué puertos prefieres para cada servicio (o usar los predeterminados).
-    *   Claves de API opcionales (OpenAI, Anthropic, Gemini).
+3.  Follow the on-screen instructions. The wizard will ask:
+    *   Whether to use **Local Supabase** (recommended for dev) or connect to a cloud instance.
+    *   Whether to run a **Local Temporal Server**.
+    *   Preferred ports for each service (or use defaults).
+    *   Optional API keys (OpenAI, Anthropic, Gemini).
 
-## 📦 Estructura Resultante
+## 📦 Resulting Structure
 
-Al finalizar, tendrás una estructura de carpetas como esta:
+Upon completion, you will have a folder structure like this:
 
 ```
-makinari-installer/
-├── install.sh          # El script maestro
-├── market-fit/         # Frontend
-├── API/                # Backend
-├── Workflows/          # Motor de procesos
-└── makinari-db-scheme/ # Esquema de BD y Migraciones (solo si usas BD local)
+cli/
+├── install.sh          # The master script
+├── start-dev.sh        # The generated startup script
+├── market-fit/         # Frontend Repo
+├── API/                # Backend Repo
+├── Workflows/          # Process Engine Repo
+└── makinari-db-scheme/ # DB Schema & Migrations (only if using local DB)
 ```
 
-## 🛠 Requisitos Previos
+## 🛠 Prerequisites
 
-El instalador intentará instalar automáticamente lo que falte (en macOS), pero idealmente deberías tener:
+The installer will attempt to automatically install missing tools (on macOS via Homebrew), but ideally you should have:
 *   Git
 *   Node.js (v18+)
-*   Docker Desktop (para BD local)
+*   Docker Desktop (required for local DB)
 
-## 🏃‍♂️ Cómo Iniciar
+## 🏃‍♂️ How to Start
 
-Una vez completada la instalación, inicia cada servicio en una terminal separada:
+Once installation is complete, a `start-dev.sh` file will be generated in the root directory.
+
+To start the entire ecosystem (Frontend, API, Workflows, Workers, DB, Temporal) in separate terminal tabs, simply run:
+
+```bash
+./start-dev.sh
+```
+
+Alternatively, you can start services individually:
 
 1.  **Frontend:** `cd market-fit && npm run dev`
-    *(Por defecto en http://localhost:3000)*
+    *(Default: http://localhost:3000)*
 
 2.  **API:** `cd API && npm run dev`
-    *(Por defecto en http://localhost:3001)*
+    *(Default: http://localhost:3001)*
 
 3.  **Workflows:** `cd Workflows && npm run dev`
-    *(Por defecto en http://localhost:3002)*
+    *(Default: http://localhost:3002)*
 
-4.  **Base de Datos (si es local):**
-    El instalador ya la habrá dejado corriendo. Puedes ver el dashboard en `http://localhost:54323`.
-    Para detenerla: `cd makinari-db-scheme && supabase stop`
-    Para iniciarla de nuevo: `cd makinari-db-scheme && supabase start`
+4.  **Database (if local):**
+    The installer leaves it running. Dashboard at `http://localhost:54323`.
+    Stop: `cd makinari-db-scheme && supabase stop`
+    Start: `cd makinari-db-scheme && supabase start`
 
-## 🤝 Contribuir
+## 🤝 Contributing
 
-Si necesitas mejorar el proceso de instalación o agregar nuevos servicios al ecosistema, edita `install.sh` y envía un Pull Request a este repositorio.
+If you need to improve the installation process or add new services to the ecosystem, edit `install.sh` and submit a Pull Request to this repository.
