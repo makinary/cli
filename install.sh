@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Makinari Interactive Installer (Wizard) v3
-# Installs and configures Market Fit, API, and Workflows services with Cross-Dependency Resolution
-# & Automatic Docker/Supabase Setup
+# Makinari Interactive Installer (Wizard) v4
+# Installs and configures Market Fit, API, Workflows, Database, and Temporal
+# Generates a 'start-dev.sh' for one-command startup.
 
 set -e
 
@@ -62,166 +62,147 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# --- Checkers & Installers ---
+
 check_and_install_docker() {
-    log_info "Checking Docker installation..."
-    
+    log_info "Checking Docker..."
     if command_exists docker; then
         log_success "Docker is installed."
     else
         log_warn "Docker is not installed."
-        
-        # Check OS
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            log_info "Detected macOS."
-            if command_exists brew; then
-                prompt_input "Install Docker via Homebrew? (y/n)" "y" INSTALL_DOCKER
-                if [ "$INSTALL_DOCKER" == "y" ]; then
-                    log_info "Installing Docker Desktop..."
-                    brew install --cask docker
-                    log_success "Docker installed. Opening Docker Desktop..."
-                    open -a Docker
-                else
-                    log_error "Docker is required for local database. Please install it manually."
-                    exit 1
-                fi
+        if [[ "$OSTYPE" == "darwin"* ]] && command_exists brew; then
+            prompt_input "Install Docker via Homebrew? (y/n)" "y" INSTALL_DOCKER
+            if [ "$INSTALL_DOCKER" == "y" ]; then
+                log_info "Installing Docker Desktop..."
+                brew install --cask docker
+                open -a Docker
             else
-                log_error "Homebrew not found. Please install Docker Desktop manually: https://www.docker.com/products/docker-desktop/"
+                log_error "Docker is required. Exiting."
                 exit 1
             fi
         else
-            log_error "Automatic Docker installation is only supported on macOS. Please install Docker manually."
+            log_error "Please install Docker manually."
             exit 1
         fi
     fi
 
-    # Check if Docker Daemon is running
-    log_info "Checking if Docker Daemon is running..."
+    log_info "Checking Docker Daemon..."
     if ! docker info > /dev/null 2>&1; then
-        log_warn "Docker is not running. Attempting to start..."
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-             open -a Docker
-        fi
-        
-        log_info "Waiting for Docker to start (this may take a minute)...";
-        while ! docker info > /dev/null 2>&1; do
-            echo -n "."
-            sleep 2
-        done
+        log_warn "Docker not running. Starting..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then open -a Docker; fi
+        log_info "Waiting for Docker..."
+        while ! docker info > /dev/null 2>&1; do echo -n "."; sleep 2; done
         echo ""
         log_success "Docker is running!"
-    else
-        log_success "Docker is already running."
     fi
 }
 
 check_and_install_supabase() {
     log_info "Checking Supabase CLI..."
-    if command_exists supabase; then
-        log_success "Supabase CLI is installed."
-    else
-        log_warn "Supabase CLI is not installed."
+    if ! command_exists supabase; then
         if [[ "$OSTYPE" == "darwin"* ]] && command_exists brew; then
-             log_info "Installing Supabase CLI via Homebrew..."
+             log_info "Installing Supabase CLI..."
              brew install supabase/tap/supabase
-             log_success "Supabase CLI installed."
         else
-             log_error "Please install Supabase CLI manually: https://supabase.com/docs/guides/cli"
+             log_error "Install Supabase CLI manually."
              exit 1
         fi
     fi
+    log_success "Supabase CLI ready."
+}
+
+check_and_install_temporal() {
+    log_info "Checking Temporal CLI..."
+    if ! command_exists temporal; then
+        if [[ "$OSTYPE" == "darwin"* ]] && command_exists brew; then
+             log_info "Installing Temporal CLI..."
+             brew install temporal
+        else
+             log_warn "Temporal CLI not found. Manual install required for local dev."
+        fi
+    fi
+    log_success "Temporal CLI ready."
 }
 
 # --- Main Script ---
 
 clear
 echo -e "${BLUE}=======================================${NC}"
-echo -e "${BLUE}   Makinari - Interactive Installer    ${NC}"
+echo -e "${BLUE}   Makinari - Ecosystem Installer      ${NC}"
 echo -e "${BLUE}=======================================${NC}"
-echo "This wizard will help you set up the Makinari ecosystem with interconnected services."
-echo "Directory: $INSTALL_DIR"
+echo "Installing to: $INSTALL_DIR"
 echo ""
 
-# 1. Check Prerequisites
-log_info "Checking prerequisites..."
-if ! command_exists git; then log_error "git is required but not installed."; exit 1; fi
-if ! command_exists npm; then log_error "npm is required but not installed."; exit 1; fi
-log_success "Basic tools met."
-echo ""
+# 1. Prerequisites
+check_and_install_docker
+check_and_install_supabase
+# Temporal check happens only if local is selected
 
-# 2. Service Configuration (Wizard)
-log_info "Let's configure the services and their ports."
-prompt_input "Market Fit (Frontend) Port" "$PORT_MARKET_FIT" CFG_PORT_MARKET_FIT
-prompt_input "API Server Port" "$PORT_API" CFG_PORT_API
-prompt_input "Workflows Service Port" "$PORT_WORKFLOWS" CFG_PORT_WORKFLOWS
+# 2. Config Services
+log_info "--- Service Ports ---"
+prompt_input "Market Fit (Frontend)" "$PORT_MARKET_FIT" CFG_PORT_MARKET_FIT
+prompt_input "API Server" "$PORT_API" CFG_PORT_API
+prompt_input "Workflows" "$PORT_WORKFLOWS" CFG_PORT_WORKFLOWS
 
-# Derive Base URLs
 URL_MARKET_FIT="http://localhost:$CFG_PORT_MARKET_FIT"
 URL_API="http://localhost:$CFG_PORT_API"
 URL_WORKFLOWS="http://localhost:$CFG_PORT_WORKFLOWS"
 
-log_info "Service URLs configured:"
-echo " - Frontend:  $URL_MARKET_FIT"
-echo " - API:       $URL_API"
-echo " - Workflows: $URL_WORKFLOWS"
+# 3. Config Database
 echo ""
-
-# 3. Database & AI Configuration
-log_info "Database Configuration"
-prompt_input "Use local Supabase? (y/n)" "n" USE_LOCAL_SUPABASE
+log_info "--- Database Configuration ---"
+prompt_input "Use Local Supabase? (y/n)" "y" USE_LOCAL_SUPABASE
 
 CFG_SUPABASE_URL=""
 CFG_SUPABASE_KEY=""
 
 if [ "$USE_LOCAL_SUPABASE" == "y" ]; then
-    # Ensure Docker and Supabase CLI are ready
-    check_and_install_docker
-    check_and_install_supabase
-    
     log_info "Setting up Local Database..."
-    
-    # Clone DB Scheme Repo
     if [ ! -d "makinari-db-scheme" ]; then
-         log_info "Cloning Database Scheme..."
          git clone "$REPO_DB_SCHEME" makinari-db-scheme
     else
-         log_warn "makinari-db-scheme directory already exists. Updating..."
          cd makinari-db-scheme && git pull && cd ..
     fi
     
-    log_info "Starting Supabase Local..."
     cd makinari-db-scheme
     supabase start
-    
-    # Extract Credentials
-    log_info "Extracting Local Credentials..."
     STATUS_OUTPUT=$(supabase status)
-    
-    # Grep for URL and Key (Assuming standard output format)
     CFG_SUPABASE_URL=$(echo "$STATUS_OUTPUT" | grep "API URL" | awk '{print $4}')
     CFG_SUPABASE_KEY=$(echo "$STATUS_OUTPUT" | grep "service_role key" | awk '{print $4}')
-    
-    if [ -z "$CFG_SUPABASE_URL" ] || [ -z "$CFG_SUPABASE_KEY" ]; then
-        log_error "Failed to extract Supabase credentials. Please check 'supabase status' output."
-        exit 1
-    fi
-    
-    log_success "Local Database Ready!"
-    log_info "URL: $CFG_SUPABASE_URL"
     cd ..
 else
-    # Remote Database
     prompt_input "Supabase URL" "" CFG_SUPABASE_URL
     prompt_secret "Supabase Service Role Key" CFG_SUPABASE_KEY
 fi
 
+# 4. Config Temporal
 echo ""
-log_info "AI Configuration (Leave empty to skip if not needed immediately)"
+log_info "--- Temporal Configuration ---"
+prompt_input "Use Local Temporal Server? (y/n)" "y" USE_LOCAL_TEMPORAL
+
+CFG_TEMPORAL_HOST="localhost:7233"
+CFG_TEMPORAL_NAMESPACE="default"
+CFG_TEMPORAL_CERT=""
+CFG_TEMPORAL_KEY=""
+
+if [ "$USE_LOCAL_TEMPORAL" == "y" ]; then
+    check_and_install_temporal
+    log_info "Local Temporal will run on localhost:7233"
+else
+    prompt_input "Temporal Host (e.g., cloud.temporal.io:7233)" "" CFG_TEMPORAL_HOST
+    prompt_input "Temporal Namespace" "default" CFG_TEMPORAL_NAMESPACE
+    prompt_input "Path to Client Cert (optional)" "" CFG_TEMPORAL_CERT
+    prompt_input "Path to Client Key (optional)" "" CFG_TEMPORAL_KEY
+fi
+
+# 5. Config AI
+echo ""
+log_info "--- AI Keys (Optional) ---"
 prompt_secret "OpenAI API Key" CFG_OPENAI_KEY
 prompt_secret "Anthropic API Key" CFG_ANTHROPIC_KEY
 prompt_secret "Gemini API Key" CFG_GEMINI_KEY
-echo ""
 
-# 4. Setup Repositories & Environments
+# 6. Setup Repos & Env
 setup_repo() {
     local name=$1
     local url=$2
@@ -229,105 +210,101 @@ setup_repo() {
     local dir="$INSTALL_DIR/$name"
 
     echo -e "\n${BLUE}--- Setting up $name ---${NC}"
+    if [ ! -d "$dir" ]; then git clone "$url" "$dir"; else cd "$dir"; git pull; cd ..; fi
+    if [ -f "$dir/package.json" ]; then cd "$dir"; npm install --silent; cd ..; fi
 
-    if [ -d "$dir" ]; then
-        log_warn "Directory $name already exists. Updating..."
-        cd "$dir" || exit
-        git pull || log_warn "Git pull failed, skipping update for $name"
-    else
-        log_info "Cloning $name..."
-        git clone "$url" "$dir"
-        cd "$dir" || exit
-    fi
+    # Env Config
+    local env_file="$dir/.env"
+    if [ -f "$dir/.env.example" ]; then cp "$dir/.env.example" "$env_file"; 
+    elif [ -f "$dir/env.example" ]; then cp "$dir/env.example" "$env_file"; fi
 
-    # Install dependencies
-    if [ -f "package.json" ]; then
-        log_info "Installing dependencies..."
-        npm install --silent
-    fi
-
-    # Configure Environment
-    log_info "Configuring environment..."
+    # Injections
+    # Common
+    if [ -n "$CFG_SUPABASE_URL" ]; then sed -i '' "s|NEXT_PUBLIC_SUPABASE_URL=.*|NEXT_PUBLIC_SUPABASE_URL=$CFG_SUPABASE_URL|g" "$env_file"; fi
+    if [ -n "$CFG_SUPABASE_KEY" ]; then sed -i '' "s|SUPABASE_SERVICE_ROLE_KEY=.*|SUPABASE_SERVICE_ROLE_KEY=$CFG_SUPABASE_KEY|g" "$env_file"; fi
+    if [ -n "$CFG_OPENAI_KEY" ]; then sed -i '' "s|OPENAI_API_KEY=.*|OPENAI_API_KEY=$CFG_OPENAI_KEY|g" "$env_file"; fi
     
-    # Determine template file
-    local env_template=""
-    if [ -f ".env.example" ]; then env_template=".env.example"; 
-    elif [ -f "env.example" ]; then env_template="env.example";
-    fi
-
-    if [ -n "$env_template" ]; then
-        cp "$env_template" .env
-        
-        # --- Common Replacements ---
-        if [ -n "$CFG_SUPABASE_URL" ]; then
-            sed -i '' "s|NEXT_PUBLIC_SUPABASE_URL=.*|NEXT_PUBLIC_SUPABASE_URL=$CFG_SUPABASE_URL|g" .env
-            sed -i '' "s|SUPABASE_URL=.*|SUPABASE_URL=$CFG_SUPABASE_URL|g" .env
-        fi
-        
-        if [ -n "$CFG_SUPABASE_KEY" ]; then
-            sed -i '' "s|SUPABASE_SERVICE_ROLE_KEY=.*|SUPABASE_SERVICE_ROLE_KEY=$CFG_SUPABASE_KEY|g" .env
-            sed -i '' "s|SUPABASE_KEY=.*|SUPABASE_KEY=$CFG_SUPABASE_KEY|g" .env
-        fi
-        
-        if [ -n "$CFG_OPENAI_KEY" ]; then
-            sed -i '' "s|OPENAI_API_KEY=.*|OPENAI_API_KEY=$CFG_OPENAI_KEY|g" .env
-        fi
-        
-        if [ -n "$CFG_ANTHROPIC_KEY" ]; then
-             sed -i '' "s|ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$CFG_ANTHROPIC_KEY|g" .env
-        fi
-        
-        if [ -n "$CFG_GEMINI_KEY" ]; then
-             sed -i '' "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=$CFG_GEMINI_KEY|g" .env
-        fi
-
-        # --- Cross-Service Dependency Injection ---
-        
-        # 1. Inject API URL into Frontend & Workflows
-        # Look for NEXT_PUBLIC_API_URL, API_BASE_URL, NEXT_PUBLIC_ORIGIN
-        if grep -q "NEXT_PUBLIC_API_URL=" .env; then
-             sed -i '' "s|NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=$URL_API|g" .env
-        else
-             echo "NEXT_PUBLIC_API_URL=$URL_API" >> .env
-        fi
-
-        if grep -q "API_BASE_URL=" .env; then
-             sed -i '' "s|API_BASE_URL=.*|API_BASE_URL=$URL_API|g" .env
-        fi
-
-        # 2. Inject Frontend URL into API (for CORS/Redirects)
-        if grep -q "NEXT_PUBLIC_APP_URL=" .env; then
-             sed -i '' "s|NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=$URL_MARKET_FIT|g" .env
-        fi
-        
-        # 3. Inject Port Configuration (if supported by framework via PORT env var)
-        if ! grep -q "PORT=" .env; then
-            echo "PORT=$port" >> .env
-        else
-            sed -i '' "s|PORT=.*|PORT=$port|g" .env
-        fi
-
-        log_success "Environment configured for $name"
+    # Temporal
+    if grep -q "TEMPORAL_" "$env_file"; then
+        sed -i '' "s|TEMPORAL_SERVER_URL=.*|TEMPORAL_SERVER_URL=$CFG_TEMPORAL_HOST|g" "$env_file"
+        sed -i '' "s|TEMPORAL_NAMESPACE=.*|TEMPORAL_NAMESPACE=$CFG_TEMPORAL_NAMESPACE|g" "$env_file"
     else
-        log_warn "No .env template found for $name. Skipping auto-config."
+        echo "TEMPORAL_SERVER_URL=$CFG_TEMPORAL_HOST" >> "$env_file"
+        echo "TEMPORAL_NAMESPACE=$CFG_TEMPORAL_NAMESPACE" >> "$env_file"
     fi
+
+    # Ports & URLs
+    if grep -q "PORT=" "$env_file"; then sed -i '' "s|PORT=.*|PORT=$port|g" "$env_file"; else echo "PORT=$port" >> "$env_file"; fi
+    if grep -q "NEXT_PUBLIC_API_URL=" "$env_file"; then sed -i '' "s|NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=$URL_API|g" "$env_file"; fi
+    if grep -q "NEXT_PUBLIC_APP_URL=" "$env_file"; then sed -i '' "s|NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=$URL_MARKET_FIT|g" "$env_file"; fi
+    if grep -q "API_BASE_URL=" "$env_file"; then sed -i '' "s|API_BASE_URL=.*|API_BASE_URL=$URL_API|g" "$env_file"; fi
+
+    log_success "$name configured."
 }
 
 setup_repo "market-fit" "$REPO_MARKET_FIT" "$CFG_PORT_MARKET_FIT"
 setup_repo "API" "$REPO_API" "$CFG_PORT_API"
 setup_repo "Workflows" "$REPO_WORKFLOWS" "$CFG_PORT_WORKFLOWS"
 
+# 7. Generate start-dev.sh
 echo ""
-echo -e "${BLUE}=======================================${NC}"
-echo -e "${GREEN}   Installation Complete!             ${NC}"
-echo -e "${BLUE}=======================================${NC}"
-echo "Services have been set up in $INSTALL_DIR"
-if [ "$USE_LOCAL_SUPABASE" == "y" ]; then
-    echo "Local Supabase is running at $CFG_SUPABASE_URL"
-    echo "Dashboard: http://localhost:54323"
+log_info "Generating 'start-dev.sh'..."
+
+cat > start-dev.sh <<EOF
+#!/bin/bash
+# Makinari Dev Starter
+# Generated by install.sh
+
+# Function to open a new tab in Terminal (macOS)
+open_tab() {
+    local cmd="$1"
+    local title="$2"
+    osascript -e "tell application \"Terminal\" to do script \"cd $INSTALL_DIR && $cmd\"" >/dev/null
+}
+
+echo "Starting Makinari Ecosystem..."
+
+# 1. Database (if local)
+if [ -d "makinari-db-scheme" ]; then
+    echo "Ensuring Local DB is up..."
+    cd makinari-db-scheme && supabase start
+    cd ..
 fi
+
+# 2. Temporal Server (if local)
+if [ "$USE_LOCAL_TEMPORAL" == "y" ]; then
+    echo "Starting Temporal Server..."
+    # Check if running
+    if ! lsof -i :7233 >/dev/null; then
+        open_tab "temporal server start-dev --ui-port 8080 --db-filename temporal.db" "Temporal Server"
+    else
+        echo "Temporal Server seems to be running already."
+    fi
+fi
+
+# 3. Services
+echo "Launching Services in new tabs..."
+
+# Frontend
+open_tab "cd market-fit && npm run dev" "Market Fit (Frontend)"
+
+# API
+open_tab "cd API && npm run dev" "API Server"
+
+# Workers (Critical, Mail, Default)
+# Assumes 'npm run start-worker -- --queue X' pattern or similar. 
+# Adjust args below if package.json scripts differ.
+open_tab "cd Workflows && npm run start-worker -- --queue critical" "Worker: Critical"
+open_tab "cd Workflows && npm run start-worker -- --queue mail" "Worker: Mail"
+open_tab "cd Workflows && npm run start-worker -- --queue default" "Worker: Default"
+
+echo "All services launched! Check your Terminal tabs."
+EOF
+
+chmod +x start-dev.sh
+log_success "start-dev.sh created."
+
 echo ""
-echo "To start the services (in separate terminals):"
-echo "1. Market Fit (Frontend):  cd market-fit && npm run dev"
-echo "2. API Server:             cd API && npm run dev"
-echo "3. Workflows:              cd Workflows && npm run dev"
+echo -e "${GREEN}=== INSTALLATION COMPLETE ===${NC}"
+echo "You can now start everything with one command:"
+echo -e "${BLUE}./start-dev.sh${NC}"
