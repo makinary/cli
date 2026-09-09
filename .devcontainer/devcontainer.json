@@ -1,0 +1,37 @@
+{
+  "name": "Makinari Ecosystem",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true
+    }
+  },
+  "forwardPorts": [3000, 3001, 3002, 54323, 7233, 8080],
+  "portsAttributes": {
+    "3000": { "label": "Market Fit (Frontend)", "onAutoForward": "notify" },
+    "3001": { "label": "API", "onAutoForward": "notify" },
+    "3002": { "label": "Workflows", "onAutoForward": "notify" },
+    "54323": { "label": "Supabase Studio", "onAutoForward": "ignore" },
+    "7233": { "label": "Temporal Server", "onAutoForward": "ignore" },
+    "8080": { "label": "Temporal UI", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "bash init-workspace.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}

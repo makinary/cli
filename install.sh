@@ -166,6 +166,7 @@ if [ "$USE_LOCAL_SUPABASE" == "y" ]; then
     
     cd makinari-db-scheme
     supabase start
+    supabase migration up || true
     STATUS_OUTPUT=$(supabase status)
     CFG_SUPABASE_URL=$(echo "$STATUS_OUTPUT" | grep "API URL" | awk '{print $4}')
     CFG_SUPABASE_KEY=$(echo "$STATUS_OUTPUT" | grep "service_role key" | awk '{print $4}')
@@ -266,8 +267,11 @@ echo "Starting Makinari Ecosystem..."
 
 # 1. Database (if local)
 if [ -d "makinari-db-scheme" ]; then
-    echo "Ensuring Local DB is up..."
-    cd makinari-db-scheme && supabase start
+    echo "Updating DB schema and ensuring Local DB is up..."
+    cd makinari-db-scheme
+    git pull
+    supabase start
+    supabase migration up || true
     cd ..
 fi
 

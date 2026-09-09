@@ -1,24 +1,53 @@
 # Makinari Installer (CLI)
 
-A "One-Liner" installer to deploy the complete **Makinari** ecosystem locally.
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/makinary/cli)
 
-This repository is the entry point for developers. It automates the setup of:
+A "One-Liner" installer to deploy the complete **Makinari** ecosystem locally or in a Dev Container.
+
+This repository is the entry point for developers and AI agents. It automates the setup of:
 
 *   **Market Fit** (Frontend - Next.js)
 *   **API** (Backend - Next.js API Routes)
 *   **Workflows** (Process Engine - Temporal + Node.js)
-*   **Local Database** (Supabase + Docker) - *Optional & Automatic!*
-*   **Local Temporal Server** - *Optional & Automatic!*
+*   **Local Database** (Supabase + Docker)
+*   **Local Temporal Server**
 
-The installer automatically handles:
-*   Dependency installation (Docker, Supabase CLI, Temporal CLI, Node.js packages).
-*   Service startup (Docker Desktop, Temporal Server).
-*   Repository cloning.
-*   Cross-environment variable configuration `.env` (API URLs, CORS, Ports).
-*   Credential injection for local Supabase and Temporal into all services.
-*   **Generation of a `start-dev.sh` script** to launch the entire stack with one command.
+---
 
-## 🚀 Quick Install
+## ☁️ One-Click Environment (Codespaces & Dev Containers)
+
+The easiest way to start working on Makinari is using the pre-configured Dev Container. It contains all dependencies (Docker-in-Docker, Node.js, Supabase CLI, Temporal CLI).
+
+### For Human Developers
+1. Click the **"Open in GitHub Codespaces"** badge above.
+2. The environment will build and automatically run `init-workspace.sh` to clone all repositories and set up `.env` files.
+3. Once the terminal is ready, run:
+   ```bash
+   ./start-workspace.sh
+   ```
+4. All services (Frontend, API, Workflows, Database, and Temporal) will start concurrently.
+
+### For AI Agents
+Agents can clone this repository into any Dev Container or Linux environment with Docker, and run:
+```bash
+./init-workspace.sh
+./start-workspace.sh
+```
+This is fully non-interactive and handles cloning, dependency installation, dummy `.env` injection, and concurrent service execution.
+
+---
+
+## 💻 Local Setup (macOS Interactive Wizard)
+
+If you prefer to run the ecosystem on your local machine (macOS recommended), you can use the legacy interactive wizard. 
+
+### Prerequisites (Local)
+*   Git
+*   Node.js (v18+)
+*   Docker Desktop (required for local DB)
+*(The installer will attempt to install missing CLI tools via Homebrew).*
+
+### Quick Install (Local)
 
 1.  Clone this repository:
     ```bash
@@ -37,53 +66,31 @@ The installer automatically handles:
     *   Preferred ports for each service (or use defaults).
     *   Optional API keys (OpenAI, Anthropic, Gemini).
 
-## 📦 Resulting Structure
+### How to Start (Local)
 
-Upon completion, you will have a folder structure like this:
-
-```
-cli/
-├── install.sh          # The master script
-├── start-dev.sh        # The generated startup script
-├── market-fit/         # Frontend Repo
-├── API/                # Backend Repo
-├── Workflows/          # Process Engine Repo
-└── makinari-db-scheme/ # DB Schema & Migrations (only if using local DB)
-```
-
-## 🛠 Prerequisites
-
-The installer will attempt to automatically install missing tools (on macOS via Homebrew), but ideally you should have:
-*   Git
-*   Node.js (v18+)
-*   Docker Desktop (required for local DB)
-
-## 🏃‍♂️ How to Start
-
-Once installation is complete, a `start-dev.sh` file will be generated in the root directory.
-
-To start the entire ecosystem (Frontend, API, Workflows, Workers, DB, Temporal) in separate terminal tabs, simply run:
+Once the interactive installation is complete, a `start-dev.sh` file is generated. To start all services in separate macOS Terminal tabs, run:
 
 ```bash
 ./start-dev.sh
 ```
 
-Alternatively, you can start services individually:
+---
 
-1.  **Frontend:** `cd market-fit && npm run dev`
-    *(Default: http://localhost:3000)*
+## 📦 Resulting Structure
 
-2.  **API:** `cd API && npm run dev`
-    *(Default: http://localhost:3001)*
+Upon completion of either method, you will have a folder structure like this:
 
-3.  **Workflows:** `cd Workflows && npm run dev`
-    *(Default: http://localhost:3002)*
-
-4.  **Database (if local):**
-    The installer leaves it running. Dashboard at `http://localhost:54323`.
-    Stop: `cd makinari-db-scheme && supabase stop`
-    Start: `cd makinari-db-scheme && supabase start`
+```
+cli/
+├── install.sh             # macOS interactive script
+├── init-workspace.sh      # Automated non-interactive script
+├── start-workspace.sh     # Cross-platform concurrent startup script
+├── market-fit/            # Frontend Repo
+├── API/                   # Backend Repo
+├── Workflows/             # Process Engine Repo
+└── makinari-db-scheme/    # DB Schema & Migrations
+```
 
 ## 🤝 Contributing
 
-If you need to improve the installation process or add new services to the ecosystem, edit `install.sh` and submit a Pull Request to this repository.
+If you need to improve the installation process or add new services to the ecosystem, edit the relevant scripts and submit a Pull Request to this repository.

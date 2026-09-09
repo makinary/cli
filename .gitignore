@@ -2,6 +2,9 @@
 market-fit/
 API/
 Workflows/
+makinari-db-scheme/
+supabase/
+test-supabase/
 node_modules/
 
 # Environment
