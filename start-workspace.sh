@@ -8,6 +8,7 @@ REDIS=$(node -p 'require("./.installer/credentials.json").redis || "external"')
 FRONTEND_PORT=$(node -p 'require("./.installer/credentials.json").ports.frontend')
 API_PORT=$(node -p 'require("./.installer/credentials.json").ports.api')
 command -v concurrently >/dev/null || { echo 'Install concurrently (the devcontainer includes it).' >&2; exit 1; }
+command -v tsx >/dev/null || { echo 'Install tsx 4.23.15 once before starting workers (the devcontainer includes it).' >&2; exit 1; }
 if [ "$TEMPORAL" = local ]; then
     command -v temporal >/dev/null || { echo 'Temporal CLI is required for local mode.' >&2; exit 1; }
 fi
@@ -40,7 +41,7 @@ if [ "$TEMPORAL" = local ]; then
     names+=",Temporal"
 fi
 for queue in critical mail default; do
-    commands+=("cd Workflows && WORKFLOW_TASK_QUEUE=$queue npm run start-worker")
+    commands+=("cd Workflows && WORKFLOW_TASK_QUEUE=$queue tsx src/scripts/start-worker.ts")
     names+=",Worker:$queue"
 done
 echo 'Starting configured services. Local Redis containers persist until explicitly stopped.'

@@ -26,7 +26,7 @@ curl -fsSLO "https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt"
 grep " ${archive}\$" SHASUMS256.txt | sha256sum --check -
 tar -xJf "$archive" --strip-components=1 -C /usr/local
 node --version
-npm install -g concurrently
+npm install -g concurrently tsx@4.23.15
 # Supabase publishes a Debian CLI package; this does not link to a remote project.
 SUPABASE_DEB_URL=$(curl -fsSL https://api.github.com/repos/supabase/cli/releases/latest | \
     jq -er '.assets[] | select(.name | test("^supabase_[0-9.]+_linux_amd64[.]deb$")) | .browser_download_url')

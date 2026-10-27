@@ -8,14 +8,14 @@ const { load } = require('./workspace-config.cjs');
 const root = path.resolve(__dirname, '..');
 function parse(args) {
   const [action, ...rest] = args;
-  if (!['prepare', 'create', 'status', 'destroy'].includes(action)) {
-    throw new Error('Usage: ./install.sh qa <prepare|create|status|destroy> [--source-root PATH] [--id ID] [--schema-dir PATH] [--ack-reviewed-schema] [--approve-create|--yes]');
+  if (!['prepare', 'create', 'status', 'destroy', 'provision', 'run', 'results'].includes(action)) {
+    throw new Error('Usage: ./install.sh qa <prepare|create|status|destroy|provision|run|results> [--source-root PATH] [--id ID] [--suite SUITE] [--schema-dir PATH] [--ack-reviewed-schema] [--approve-create|--yes]');
   }
   const out = { action };
   for (let i = 0; i < rest.length; i++) {
     const key = rest[i];
     if (['--approve-create', '--yes', '--ack-reviewed-schema'].includes(key)) out[key.slice(2)] = true;
-    else if (['--source-root', '--id', '--schema-dir'].includes(key) && rest[i + 1] && !rest[i + 1].startsWith('--')) out[key.slice(2)] = rest[++i];
+    else if (['--source-root', '--id', '--schema-dir', '--suite'].includes(key) && rest[i + 1] && !rest[i + 1].startsWith('--')) out[key.slice(2)] = rest[++i];
     else throw new Error('Unknown or incomplete QA option: ' + key);
   }
   if (action !== 'prepare' && !/^qa-[a-zA-Z0-9_-]+$/.test(out.id || '')) throw new Error('An explicit valid --id is required; latest is never inferred');
@@ -113,6 +113,14 @@ function main(args = process.argv.slice(2)) {
     return;
   }
   if (options.action === 'destroy' && !options.yes) throw new Error('Destruction requires --yes after selecting the exact QA ID');
+  if (['provision', 'run', 'results'].includes(options.action)) {
+    if (['provision', 'run'].includes(options.action) && !options.yes) throw new Error('QA mutations require --yes and the exact environment ID');
+    if (options.action === 'run' && !['smoke', 'buyer', 'roles', 'regression'].includes(options.suite)) throw new Error('Select --suite smoke|buyer|roles|regression');
+    const args = [path.join(root, 'scripts/qa-tests.py'), options.action, '--qa-id', options.id];
+    if (options.suite) args.push('--suite', options.suite);
+    run('python3', args);
+    return;
+  }
   run('python3', [path.join(root, 'scripts/qa-lifecycle.py'), options.action, '--qa-id', options.id]);
 }
 if (require.main === module) {

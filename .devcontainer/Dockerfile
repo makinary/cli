@@ -17,4 +17,4 @@ RUN curl -sSf https://temporal.download/cli.sh | sh \
     && chmod +x /usr/local/bin/temporal
 
 # Pre-install concurrently to run multiple services in start-workspace.sh
-RUN npm install -g concurrently
+RUN npm install -g concurrently tsx@4.23.15

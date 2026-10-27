@@ -1,5 +1,29 @@
 # Disposable Azure QA
 
+## Installer retry — 2026-10-27
+
+Published installer `f4e470fc` and schema `5ba907f2` were tested through
+`install.sh qa prepare/create` using clean published service snapshots. The first
+attempt failed on a removed unversioned Supabase Debian asset URL and its group
+was deleted and absence confirmed. Local corrections now resolve the versioned
+asset and preinstall tsx once to avoid concurrent worker npx cache corruption.
+
+Fresh Supabase replay exposed three schema portability issues: existing `public`
+schema, missing non-login `apps_migration_coordinator` role, and default ACLs owned
+by internal `supabase_admin`. Local QA bootstrap corrections handle those without
+editing historical migrations or remote production. The corrected replay recorded
+145 migrations; `sale_order_items` exists and `sites` has zero rows. Supabase and
+Redis became healthy, frontend `/auth` and API `/api/status` returned HTTP 200,
+and critical/mail/default workers entered RUNNING.
+
+This attempt includes **unpublished local corrections** in installer and schema;
+it is not a pass of the originally published commits alone. The active environment
+is `qa-1793126113145-a4b7d0d6`, with external expiry scheduled for 2026-10-27
+22:36 UTC (four-hour exact deadline 22:35:34 UTC). Verify actual cleanup after expiry.
+No buyer/admin identities or fixtures were provisioned and no E2E, payment,
+subscription, email or AI generation calls were executed. HTTP readiness is not
+business-flow certification. Secrets and raw logs remain private.
+
 ## Current status and installer entry point
 
 The previously created West US 2 environment was deleted at the user's request

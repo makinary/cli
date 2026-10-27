@@ -10,6 +10,24 @@ test('installer provides QA lifecycle commands with explicit IDs and no latest i
   expect(() => parse(['create', '--id', '../production'])).toThrow(/explicit valid/);
   expect(() => parse(['status', '--id', 'qa-test', '--unknown'])).toThrow(/Unknown/);
   expect(parse(['destroy', '--id', 'qa-test', '--yes']).yes).toBe(true);
+  expect(parse(['run', '--id', 'qa-test', '--suite', 'roles', '--yes'])).toEqual({ action: 'run', id: 'qa-test', suite: 'roles', yes: true });
+  expect(parse(['provision', '--id', 'qa-test', '--yes']).action).toBe('provision');
+});
+test('QA run/provision refuse mutations without explicit acknowledgement', () => {
+  for (const action of ['run', 'provision']) {
+    const result = spawnSync('bash', [path.join(__dirname, '../install.sh'), 'qa', action, '--id', 'qa-test'], {
+      env: { PATH: `${path.dirname(process.execPath)}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('QA mutations require --yes');
+  }
+});
+test('remote QA runner validates expiry and never sources credentials into a shell', () => {
+  const code = fs.readFileSync(path.join(__dirname, '../scripts/qa-tests.py'), 'utf8');
+  expect(code).toContain('remaining < required');
+  expect(code).toContain('module.owned_group(state)');
+  expect(code).toContain("'scripts/e2e/run.cjs','--suite'");
+  expect(code).toContain("'.auth/qa-fixtures/'+id+'/env.json'");
+  expect(code).not.toContain('source .env');
 });
 test('creation fails before cloud resources when approval or reviewed schema is missing', () => {
   expect(() => preflight({ id: 'qa-test' })).toThrow(/Cost approval/);
