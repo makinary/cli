@@ -11,6 +11,37 @@ This repository is the entry point for developers and AI agents. It automates th
 *   **Workflows** (Process Engine - Temporal + Node.js)
 *   **Local Database** (Supabase + Docker)
 *   **Local Temporal Server**
+*   **Local Redis cache, durable streams and authenticated REST adapter**, or external Redis
+*   **Credential inventory and validation**
+
+See [credential requirements](docs/CREDENTIALS.md) for the authoritative installer
+inventory, enabled-feature requirements, Redis TCP/REST compatibility and current
+local-schema safety blocker. Run `./install.sh --list-credentials` to list requirements
+without installing or starting anything.
+
+## Single-entry-point QA lifecycle
+
+All QA operations now enter through `install.sh`; helper scripts are internal.
+
+```bash
+./install.sh qa prepare --source-root /absolute/path/to/service-repositories
+./install.sh qa status --id QA_ID
+./install.sh qa create --id QA_ID --schema-dir /absolute/path/to/reviewed-schema --ack-reviewed-schema --approve-create
+./install.sh qa destroy --id QA_ID --yes
+```
+
+`prepare` prints a unique `qa-...` ID and imports permitted provider credentials
+without copying production infrastructure credentials. `create` requires a
+reviewed complete local-only schema **before** creating paid Azure resources.
+It packages clean service revisions and invokes this same installer remotely,
+with local Supabase/Redis/Temporal and four-hour Azure expiry. A missing/incomplete
+schema, dirty service checkout or existing attempt ID stops creation. No `latest`
+environment is inferred and a failed retry cannot adopt/delete an existing VM.
+
+The original manually bootstrapped QA environment was explicitly deleted on
+2026-10-27; deletion was confirmed through the installer. No replacement was
+created by this integration. Schema reconstruction, QA users/fixtures and complete
+payment/subscription E2E remain pending; see [Azure QA](docs/AZURE_QA.md).
 
 ---
 
@@ -21,11 +52,13 @@ The easiest way to start working on Makinari is using the pre-configured Dev Con
 ### For Human Developers
 1. Click the **"Open in GitHub Codespaces"** badge above.
 2. The environment will build and automatically run `init-workspace.sh` to clone all repositories and set up `.env` files.
-3. Once the terminal is ready, run:
+3. Configure credentials with `./install.sh --configure` (or `--from-env`
+   using Codespaces secrets). Once the configuration is ready, run:
    ```bash
    ./start-workspace.sh
    ```
-4. All services (Frontend, API, Workflows, Database, and Temporal) will start concurrently.
+4. Startup validates configuration and refuses unsafe
+   external webhook destinations in the historical local schema.
 
 ### For AI Agents
 Agents can clone this repository into any Dev Container or Linux environment with Docker, and run:
@@ -33,7 +66,8 @@ Agents can clone this repository into any Dev Container or Linux environment wit
 ./init-workspace.sh
 ./start-workspace.sh
 ```
-This is fully non-interactive and handles cloning, dependency installation, dummy `.env` injection, and concurrent service execution.
+Initialization is non-interactive, keeps existing checkouts unchanged and uses
+`npm ci`. It no longer injects dummy keys. Configure credentials before startup.
 
 ---
 
@@ -43,9 +77,11 @@ If you prefer to run the ecosystem on your local machine (macOS recommended), yo
 
 ### Prerequisites (Local)
 *   Git
-*   Node.js (v18+)
+*   Node.js (v22.12+)
 *   Docker Desktop (required for local DB)
-*(The installer will attempt to install missing CLI tools via Homebrew).*
+* Supabase CLI and Temporal CLI for local modes; `concurrently` for service startup.
+* Docker Compose v2 for local Redis; external Redis credentials are optional.
+The devcontainer installs the CLI tools. Local users must install them explicitly.
 
 ### Quick Install (Local)
 
@@ -64,11 +100,15 @@ If you prefer to run the ecosystem on your local machine (macOS recommended), yo
     *   Whether to use **Local Supabase** (recommended for dev) or connect to a cloud instance.
     *   Whether to run a **Local Temporal Server**.
     *   Preferred ports for each service (or use defaults).
-    *   Optional API keys (OpenAI, Anthropic, Gemini).
+    *   Create local Redis (default), or provide external cache TCP/REST and streams credentials.
+    *   Internal authentication, encryption and independent signing secrets.
+    *   Enable OpenRouter, Azure, TTS, Stripe or SendGrid; each enabled feature
+        requires its complete credential group. Stripe uses test credentials only.
 
 ### How to Start (Local)
 
-Once the interactive installation is complete, a `start-dev.sh` file is generated. To start all services in separate macOS Terminal tabs, run:
+Once installation is complete, a `start-dev.sh` wrapper is generated. To start
+the configured services with concurrent logs, run:
 
 ```bash
 ./start-dev.sh

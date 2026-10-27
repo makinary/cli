@@ -9,4 +9,9 @@ node_modules/
 
 # Environment
 .env
+.env.*
+!.env.example
+.installer/
+start-dev.sh
+temporal.db*
 .DS_Store

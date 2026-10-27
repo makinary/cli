@@ -11,7 +11,7 @@
       "moby": "true"
     },
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "20",
+      "version": "22",
       "nodeGypDependencies": true
     }
   },
