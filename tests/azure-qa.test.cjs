@@ -54,6 +54,10 @@ test('host and devcontainer discover the versioned Supabase Debian release asset
 test('workers use installed tsx instead of racing three npx installs', () => {
   const code = fs.readFileSync(path.join(__dirname, '../start-workspace.sh'), 'utf8');
   expect(code).toContain('command -v tsx');
-  expect(code).toContain('WORKFLOW_TASK_QUEUE=$queue tsx src/scripts/start-worker.ts');
+  expect(code).toContain('exec node scripts/workspace-runtime.cjs');
+  const runtime = fs.readFileSync(path.join(__dirname, '../scripts/workspace-runtime.cjs'), 'utf8');
+  expect(runtime).toContain("launch('tsx', ['src/scripts/start-worker.ts']");
+  expect(runtime).toContain('WORKFLOW_TASK_QUEUE: queue');
+  expect(runtime).not.toContain("launch('npx'");
   expect(code).not.toContain('npm run start-worker');
 });

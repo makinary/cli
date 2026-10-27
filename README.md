@@ -79,7 +79,7 @@ If you prefer to run the ecosystem on your local machine (macOS recommended), yo
 *   Git
 *   Node.js (v22.12+)
 *   Docker Desktop (required for local DB)
-* Supabase CLI and Temporal CLI for local modes; `concurrently` for service startup.
+* Supabase CLI and Temporal CLI for local modes; `tsx` 4.23.15 for workers.
 * Docker Compose v2 for local Redis; external Redis credentials are optional.
 The devcontainer installs the CLI tools. Local users must install them explicitly.
 
@@ -108,11 +108,29 @@ The devcontainer installs the CLI tools. Local users must install them explicitl
 ### How to Start (Local)
 
 Once installation is complete, a `start-dev.sh` wrapper is generated. To start
-the configured services with concurrent logs, run:
+the configured services with a managed supervisor and stable web ports, run:
 
 ```bash
 ./start-dev.sh
 ```
+
+### Updates without stopping the web services first
+
+```bash
+./install.sh --update
+```
+
+With the managed workspace running, this stages clean upstream frontend/API
+revisions in isolated directories, installs locked dependencies, starts them on
+new internal ports, verifies HTTP readiness and switches the stable public ports.
+Failed candidates leave the previous release serving. Old connections drain for
+up to 30 seconds before the old processes stop.
+
+Services started with the previous startup script require **one initial restart**
+to adopt the proxy. Live updates do not update workers, infrastructure, database
+migrations or the installer itself. Use `./install.sh --update --prepare-only`
+to stage frontend/API/Workflows without activation. See [update procedures and
+limitations](docs/UPDATES.md), including health paths, compatibility and recovery.
 
 ---
 
@@ -124,7 +142,7 @@ Upon completion of either method, you will have a folder structure like this:
 cli/
 ├── install.sh             # macOS interactive script
 ├── init-workspace.sh      # Automated non-interactive script
-├── start-workspace.sh     # Cross-platform concurrent startup script
+├── start-workspace.sh     # Cross-platform managed startup script
 ├── market-fit/            # Frontend Repo
 ├── API/                   # Backend Repo
 ├── Workflows/             # Process Engine Repo

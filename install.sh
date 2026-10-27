@@ -7,6 +7,7 @@ node -e 'const [a,b]=process.versions.node.split(".").map(Number); if(a<22 || (a
     echo 'Node.js >=22.12 is required.' >&2; exit 1;
 }
 case "${1:-}" in
+    --update) exec node scripts/update-workspace.cjs "$@" ;;
     qa) shift; exec node scripts/qa-installer.cjs "$@" ;;
     --start) exec bash start-workspace.sh ;;
     --existing-config)
@@ -19,7 +20,7 @@ case "${1:-}" in
     --from-env) exec node scripts/credential-wizard.cjs --from-env ;;
     --check) exec node scripts/workspace-config.cjs ;;
     '') ;;
-    *) echo 'Usage: ./install.sh [--list-credentials|--configure|--from-env|--check|--start|--existing-config [--start]|qa <prepare|create|status|destroy>]' >&2; exit 1 ;;
+    *) echo 'Usage: ./install.sh [--update [--prepare-only|--help]|--list-credentials|--configure|--from-env|--check|--start|--existing-config [--start]|qa <prepare|create|status|destroy>]' >&2; exit 1 ;;
 esac
 node scripts/credential-wizard.cjs
 bash init-workspace.sh

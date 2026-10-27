@@ -2,12 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 node scripts/workspace-config.cjs
+[ ! -e .installer/runtime.sock ] || { echo 'Managed runtime socket already exists. Stop the running workspace first; remove a stale socket only after verifying no supervisor is running.' >&2; exit 1; }
 DATABASE=$(node -p 'require("./.installer/credentials.json").database')
 TEMPORAL=$(node -p 'require("./.installer/credentials.json").temporal')
 REDIS=$(node -p 'require("./.installer/credentials.json").redis || "external"')
-FRONTEND_PORT=$(node -p 'require("./.installer/credentials.json").ports.frontend')
-API_PORT=$(node -p 'require("./.installer/credentials.json").ports.api')
-command -v concurrently >/dev/null || { echo 'Install concurrently (the devcontainer includes it).' >&2; exit 1; }
 command -v tsx >/dev/null || { echo 'Install tsx 4.23.15 once before starting workers (the devcontainer includes it).' >&2; exit 1; }
 if [ "$TEMPORAL" = local ]; then
     command -v temporal >/dev/null || { echo 'Temporal CLI is required for local mode.' >&2; exit 1; }
@@ -34,15 +32,5 @@ if [ "$REDIS" = local ]; then
 else
     echo 'External Redis selected; existing endpoints will be used.'
 fi
-commands=("cd market-fit && npm run dev -- --port $FRONTEND_PORT" "cd API && npm run dev -- --port $API_PORT")
-names="MarketFit,API"
-if [ "$TEMPORAL" = local ]; then
-    commands+=("temporal server start-dev --ui-port 8080 --db-filename temporal.db")
-    names+=",Temporal"
-fi
-for queue in critical mail default; do
-    commands+=("cd Workflows && WORKFLOW_TASK_QUEUE=$queue tsx src/scripts/start-worker.ts")
-    names+=",Worker:$queue"
-done
 echo 'Starting configured services. Local Redis containers persist until explicitly stopped.'
-exec concurrently -k -p '[{name}]' -n "$names" "${commands[@]}"
+exec node scripts/workspace-runtime.cjs
