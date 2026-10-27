@@ -42,3 +42,11 @@ test('private credential transfer verifies SSH host key through Azure and refuse
   const result = spawnSync('python3', ['-c', 'import ast,pathlib,sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())', file]);
   expect(result.status).toBe(0);
 });
+test('host and devcontainer discover the versioned Supabase Debian release asset', () => {
+  for (const file of ['scripts/azure-host-bootstrap.sh', '.devcontainer/Dockerfile']) {
+    const code = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    expect(code).toContain('https://api.github.com/repos/supabase/cli/releases/latest');
+    expect(code).toContain('browser_download_url');
+    expect(code).not.toContain('latest/download/supabase_linux_amd64.deb');
+  }
+});

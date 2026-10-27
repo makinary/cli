@@ -28,7 +28,10 @@ tar -xJf "$archive" --strip-components=1 -C /usr/local
 node --version
 npm install -g concurrently
 # Supabase publishes a Debian CLI package; this does not link to a remote project.
-curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.deb -o supabase.deb
+SUPABASE_DEB_URL=$(curl -fsSL https://api.github.com/repos/supabase/cli/releases/latest | \
+    jq -er '.assets[] | select(.name | test("^supabase_[0-9.]+_linux_amd64[.]deb$")) | .browser_download_url')
+case "$SUPABASE_DEB_URL" in https://github.com/supabase/cli/releases/download/*) ;; *) echo 'Invalid Supabase release asset.' >&2; exit 1;; esac
+curl -fsSL "$SUPABASE_DEB_URL" -o supabase.deb
 dpkg -i supabase.deb
 curl -fsSL https://temporal.download/cli.sh -o temporal-install.sh
 bash temporal-install.sh
