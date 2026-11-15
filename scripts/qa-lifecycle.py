@@ -57,6 +57,12 @@ def package(directory, schema):
         target = staging / 'makinari-db-scheme/supabase'
         target.mkdir(parents=True)
         shutil.copy2(schema / 'supabase/config.toml', target / 'config.toml')
+        # Override only the temporary copy for fresh QA, never the immutable schema.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('qa_auth_config', ROOT / 'scripts/qa-auth-config.py')
+        auth_config = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(auth_config)
+        auth_config.configure(target / 'config.toml')
         (target / 'migrations').mkdir()
         # Never transfer seeds, backups, Vault contents, function code or linked-project metadata.
         for migration in (schema / 'supabase/migrations').glob('*.sql'):
@@ -85,7 +91,8 @@ def bootstrap(directory, state):
               'sudo usermod -aG docker "$USER"; '
               'tar -xzf installer-bundle.tar.gz; '
               'sg docker -c "bash install.sh --existing-config" >installer-run.log 2>&1; '
-              'nohup sg docker -c "bash install.sh --start" >>installer-run.log 2>&1 </dev/null & '
+              'nohup env MAKINARI_FRONTEND_HEALTH_PATH=/auth MAKINARI_API_HEALTH_PATH=/api/status '
+              'sg docker -c "bash install.sh --start" >>installer-run.log 2>&1 </dev/null & '
               'echo $! >installer.pid; sleep 15; kill -0 "$(cat installer.pid)"')
     r = subprocess.run(['ssh', *options, host, script], capture_output=True, text=True, timeout=1200)
     if r.returncode:

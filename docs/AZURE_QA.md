@@ -1,5 +1,218 @@
 # Disposable Azure QA
 
+## Supabase CLI compatibility repair — 2026-11-14
+
+The disposable attempt `qa-1794707562780-19f73f1e` created its Azure VM but
+failed before backend readiness: Supabase CLI 3.1.0 rejects the legacy
+`[inbucket]` configuration. The exact group was deleted and absence verified.
+
+The installer now normalizes `[inbucket]` to `[local_smtp]` only in the temporary
+schema copy during packaging, before creating paid resources. An already-modern
+section is preserved. Exactly one mail section must be present, enabled and bound
+to port 54324; missing, ambiguous, disabled or wrong-port configurations fail
+without modifying the input or writing Auth templates. Additional transport
+settings and comments are retained. Auth confirmation/recovery templates, exact
+loopback redirects and disabled seed guards remain enforced. The original schema
+checkout and applied migrations are not edited.
+
+The Azure host bootstrap pins Supabase CLI **3.1.0**, resolves the exact Debian
+asset from that release tag and verifies the installed version. It no longer
+downloads `latest`. The existing `TEST_INBUCKET_URL` remains the mailbox endpoint
+name for browser helpers; its loopback URL/port do not change. This repair does
+not authorize external email, production access or replacement infrastructure.
+
+Validation: the complete installer Jest battery passed **11 suites / 200 tests**,
+including new executable Python/TOML regressions for legacy and modern mail,
+ambiguous sections, disabled mail, wrong ports and unchanged original files.
+Shell syntax and diff checks passed. The official Darwin ARM64 CLI 3.1.0 binary
+was downloaded privately and its SHA256 verified against the release checksums.
+Running `supabase status` against isolated copies of the actual bootstrap config
+reproduced the legacy `[inbucket]` rejection; the normalized copy passed config
+loading and reached the unavailable local Docker check. Original config bytes
+were unchanged. This is not a successful fresh backend replay or live E2E
+certificate. Reattempt via `install.sh qa prepare/create` with a new
+exact ID, reviewed schema and explicit cost approval; never reuse the deleted ID.
+
+## Initial battery and suite execution
+
+### Local managed-runtime control
+
+Use `./install.sh --stop` to stop the current local supervisor before a reviewed
+restart; do not locate it by matching an assumed process command string. This
+uses `scripts/runtime-control.cjs stop --root <canonical-installer-root>` over
+the user-owned mode-0600 Unix socket. The helper checks exact root, socket type,
+ownership and server-instance identity, then waits for graceful child/public-port
+shutdown. It never selects arbitrary PIDs, removes live sockets or trusts HTTP
+Host/forwarded headers. Other roots, symlink aliases, replaced sockets and
+unconfirmed shutdown fail closed. This command stops services, not Docker data
+or Azure resources; exact QA destruction remains a separate installer operation.
+
+`node scripts/runtime-control.cjs status --root /canonical/absolute/root` returns
+local supervisor state. Do not expose the control socket over a public port.
+
+The installer now exposes `qa provision`, `qa run --suite` and `qa results`, all
+requiring exact IDs. Provision/run require `--yes`; actual Azure ownership/expiry
+are checked before local-only mutations. Suites are sequential. A full regression
+requires at least 7,500 seconds before expiry; account lifecycle requires 1,500
+seconds (frontend timeout: 1,200 seconds); procurement and subsystems each require
+1,800 seconds (20-minute module policy plus overhead); project lifecycle and other
+shorter runs require 900 seconds.
+Provision requires 1,500 seconds for upload, browser installation and fixture
+creation. After uploading the reviewed tests, it runs the existing installed CLI
+`npx --no-install playwright install --with-deps chromium` in the QA application
+directory, with a 600-second timeout and private `qa-browser-install.log` on the
+VM. This installs the matching Chromium revision and OS dependencies, not another
+Playwright package/version; lockfiles are unchanged and no application build runs.
+Installation failure stops provision before fixtures. Suite execution never
+installs browsers automatically, skips tests or converts a missing browser into
+success; provision must complete before an explicitly selected run.
+No automatic extension is performed. Results saves safe machine summaries and
+per-test diagnostic evidence locally without exporting raw traces/auth state/provider
+payloads. An incomplete export returns nonzero and explains the extraction gap.
+
+`procurement` and `subsystems` are explicit isolated mutating suites, not part of
+smoke or regression discovery. Both use native `@playwright/test` assertions and
+do not require AI-provider configuration. The runner enables both mutation flags
+only for the selected mutating suite and does not grant either lifecycle capability
+to module suites. Verified QA fixtures, exact run/QA identity, local loopback
+origins, a public Supabase key and expiry remain mandatory. Run sequentially:
+
+```sh
+./install.sh qa run --id QA_ID --suite procurement --yes
+./install.sh qa results --id QA_ID --suite procurement
+./install.sh qa run --id QA_ID --suite subsystems --yes
+./install.sh qa results --id QA_ID --suite subsystems
+```
+
+Wait for each run to finish before starting the next. Procurement's immutable
+run-owned records are retained until exact QA destruction; no global cleanup is
+authorized. Evidence permits only reviewed procurement/subsystems project enums
+and exact spec/support paths, never arbitrary paths in those directories. These
+commands do not authorize creation, packaging-rule changes or expiry extensions;
+offline validation is not live suite success.
+
+### Preserve exact-run diagnostic evidence before destruction
+
+After each suite finishes, run `./install.sh qa results --id QA_ID` **before**
+`qa destroy` or automatic expiry. It exports only runs named
+`QA_ID-SUITE-<8 lowercase hex characters>` and checks each manifest/summary's exact
+run ID, suite and local target. Retries remain separate runs; health indexes,
+neighboring environments and raw engine logs are never merged or used as evidence.
+`--suite SUITE` optionally limits the export; there is no inferred latest run.
+
+Private local outputs under `.installer/qa/QA_ID/` (mode `0600`, atomic replacement):
+
+- `test-summaries.json`: existing run summaries, now also retaining original
+  `expectedCount`, `selectedCount`, `missing`, `unexpected` and scope. Missing
+  metadata remains `null`, never an inferred zero.
+- `test-evidence.json`: one record per exact run, including selected/setup/unexpected
+  cases, outcome, attempt status/retry/duration, nested step indexes, safe locations
+  and explicit extraction status/error codes. Titles, including test/suite/step and
+  function names, are **omitted entirely**. A case is identified by selection index,
+  project enum and local source location, not a possibly password-bearing title.
+- `test-evidence-error.json`: safe enum-only transport/validation failure, with no
+  invented results; the previous successful exports are retained on these failures.
+  A later successful extraction removes this error file.
+
+The dependency-free Node helper reads `run-manifest.json`, `run-summary.json` and
+the exact run's `playwright.json` **on the VM**. It reads `test.results`, both
+`error` and `errors`, and nested steps; original raw JSON never leaves the VM.
+Stack frames become repository-relative file/line/column records only when the
+file belongs to the fixed reviewed harness-path allowlist and exists in the source
+catalog (including generated filenames derived from allowed YAML files). Merely
+matching a filename pattern is insufficient: token-bearing source filenames are
+excluded, even if they exist. New harness paths require explicit allowlist review.
+URL/function/stack text and unknown
+paths are discarded. Generated YAML test locations remain identifiable by their
+source-derived filenames. When the source line exists, hints include only fixed
+assertion-method, operation and locator-property enums (never locator values).
+Endpoint hints allow only fixed reviewed paths or masked public-document/shop/book
+prefixes; origins, dynamic tails, query strings and fragments are never exported.
+Unknown error text remains `UNKNOWN_ERROR`, not a copied message fragment or an
+invented provider/auth diagnosis. Headers, bodies, attachments, stdout/stderr,
+auth state, account journals, passwords, email addresses and provider responses
+are excluded. The local helper validates this strict schema again before saving.
+
+Review each run's extraction status, `detailCount`, `selectedMissingCount` and
+original counts. `REPORT_MISSING`/`REPORT_INVALID`, ID mismatch, missing selected
+results, duplicate cases, count mismatch and unavailable source locations are
+explicit gaps. Missing cases have `outcome=unavailable`, no attempts and no
+fabricated failure details. In-progress/blocked runs can preserve summary counts
+without any per-test evidence. Export is not a suite rerun, cloud publication,
+cleanup confirmation or a guarantee that incomplete evidence can be recovered.
+
+**Historical limit:** `qa-1793220482163-d601ed05` was deleted after saving only
+summary counts (regression: 1 passed, 47 failed, 2 blocked) and smoke traces.
+Individual regression errors/steps were not retained; their details cannot be
+recovered from aggregate counts or smoke evidence. This exporter cannot reconstruct
+that deleted run. A newly approved disposable rerun is required to obtain them;
+no new VM, provider calls or live browser run are authorized by this change.
+
+### Isolated lifecycle acceptance commands
+
+After approved creation and verified fixture provisioning, select the exact ID;
+these commands are documentation, not authorization to create or run an environment:
+
+```bash
+./install.sh qa provision --id QA_ID --yes
+./install.sh qa run --id QA_ID --suite account-lifecycle --yes
+./install.sh qa results --id QA_ID
+./install.sh qa run --id QA_ID --suite project-lifecycle --yes
+./install.sh qa results --id QA_ID
+./install.sh qa destroy --id QA_ID --yes
+./install.sh qa status --id QA_ID
+```
+
+Wait for each suite to finish before starting the next. Installer execution uses
+`--target local` on the disposable VM, never a remote application URL. Both suites
+receive `TEST_ALLOW_MUTATIONS=1` and `TEST_DISPOSABLE_ENVIRONMENT=1`; only the
+requested suite receives its matching `TEST_ALLOW_ACCOUNT_LIFECYCLE=1` or
+`TEST_ALLOW_PROJECT_LIFECYCLE=1`. Non-requested lifecycle flags are explicitly `0`.
+Account lifecycle alone receives `TEST_INBUCKET_URL=http://127.0.0.1:54324`.
+The verified fixture battery supplies `QA_STATUS=VERIFIED` and the matching
+`QA_ENVIRONMENT_ID`; `QA_EXPIRES_AT` comes from the ownership-checked Azure state.
+Smoke/buyer receive no mutation permission; roles/regression retain disposable
+mutation permission but no lifecycle permission or Inbucket URL.
+
+**Fresh-package email configuration:** `qa-lifecycle.py` invokes
+`scripts/qa-auth-config.py` only after copying the reviewed immutable config into
+its temporary staging directory. Packaging requires Python 3.11+ (`tomllib`). The
+helper requires project `makinari-qa`, exact
+`http://127.0.0.1:3000` Auth site URL, disabled seeds, and local enabled Inbucket on
+port 54324. It enables email confirmations and permits only exact loopback
+`/auth/callback`, `/auth/confirm` and `/auth/reset-password` redirects. Existing
+confirmation/recovery template configuration or files are rejected, not overwritten.
+The packaged `supabase/templates/qa-confirmation.html` and `qa-recovery.html` link to
+`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&returnTo=%2Fprojects`
+and the same URL with `type=recovery`. This uses the application's manual confirmation
+flow rather than stock hash-session links. The original schema config/manifest and
+applied migrations are unchanged. No override is applied to existing VMs or production
+Auth settings. An already initialized environment with confirmations disabled still
+cannot pass account signup acceptance; only a newly approved, freshly packaged QA
+initialization receives these settings. Template delivery and runtime acceptance
+remain unverified live; local tests do not claim a browser lifecycle pass.
+
+New account cleanup is destruction of the **exact** disposable environment, with
+group absence verified afterward; project archival alone does not remove Auth
+users. Keep the account journal private, recording created user IDs but never
+passwords, confirmation/reset links or tokens. Do not export raw browser traces,
+mailbox payloads or auth state as safe summaries. No live lifecycle pass is claimed
+by installer support or local source-contract tests.
+`qa results` exports safe run summaries and diagnostics, not the account journal. Before
+destruction, an explicitly approved manual private export may retain
+`~/qa/market-fit/.auth/local/RUN_ID/account-lifecycle-journal.json` for cleanup
+evidence (user IDs and `cleanup.completed=false` while accounts still exist).
+Do not export neighboring auth-state files or mailbox payloads. Record exact group
+deletion and subsequent status/absence verification separately; do not relabel a
+pre-destruction journal as completed cleanup.
+
+The initial battery verified 5 users, 2 sites and 21 fixture rows. Real roles suite
+passed 7/7. The latest buyer read journey passed after correcting explicit cancelled
+FX-body handling; smoke remains failing on observed image/dependency errors.
+The first 50-test regression failed at Shiplight model setup before actual steps;
+a corrected full retry was refused on remaining lifetime. See the frontend's
+`specs/qa-disposable/test-report.md` for exact attempts and unfinished coverage.
+
 ## Installer retry — 2026-10-27
 
 Published installer `f4e470fc` and schema `5ba907f2` were tested through

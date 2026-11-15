@@ -27,12 +27,18 @@ grep " ${archive}\$" SHASUMS256.txt | sha256sum --check -
 tar -xJf "$archive" --strip-components=1 -C /usr/local
 node --version
 npm install -g concurrently tsx@4.23.15
-# Supabase publishes a Debian CLI package; this does not link to a remote project.
-SUPABASE_DEB_URL=$(curl -fsSL https://api.github.com/repos/supabase/cli/releases/latest | \
-    jq -er '.assets[] | select(.name | test("^supabase_[0-9.]+_linux_amd64[.]deb$")) | .browser_download_url')
-case "$SUPABASE_DEB_URL" in https://github.com/supabase/cli/releases/download/*) ;; *) echo 'Invalid Supabase release asset.' >&2; exit 1;; esac
+# Keep the QA config normalizer and CLI on one reviewed version. Never resolve latest.
+SUPABASE_VERSION=3.1.0
+SUPABASE_DEB_URL=$(curl -fsSL "https://api.github.com/repos/supabase/cli/releases/tags/v${SUPABASE_VERSION}" | \
+    jq -er --arg name "supabase_${SUPABASE_VERSION}_linux_amd64.deb" '.assets[] | select(.name == $name) | .browser_download_url')
+if [ "$SUPABASE_DEB_URL" != "https://github.com/supabase/cli/releases/download/v${SUPABASE_VERSION}/supabase_${SUPABASE_VERSION}_linux_amd64.deb" ]; then
+    echo 'Invalid pinned Supabase release asset.' >&2; exit 1
+fi
 curl -fsSL "$SUPABASE_DEB_URL" -o supabase.deb
 dpkg -i supabase.deb
+if [ "$(supabase --version)" != "$SUPABASE_VERSION" ]; then
+    echo 'Installed Supabase version does not match the QA pin.' >&2; exit 1
+fi
 curl -fsSL https://temporal.download/cli.sh -o temporal-install.sh
 bash temporal-install.sh
 install -m 0755 /root/.temporalio/bin/temporal /usr/local/bin/temporal

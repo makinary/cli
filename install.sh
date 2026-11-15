@@ -10,6 +10,7 @@ case "${1:-}" in
     --update) exec node scripts/update-workspace.cjs "$@" ;;
     qa) shift; exec node scripts/qa-installer.cjs "$@" ;;
     --start) exec bash start-workspace.sh ;;
+    --stop) shift; exec node scripts/runtime-control.cjs stop --root "$(pwd -P)" "$@" ;;
     --existing-config)
         node scripts/workspace-config.cjs
         bash init-workspace.sh
@@ -20,7 +21,7 @@ case "${1:-}" in
     --from-env) exec node scripts/credential-wizard.cjs --from-env ;;
     --check) exec node scripts/workspace-config.cjs ;;
     '') ;;
-    *) echo 'Usage: ./install.sh [--update [--prepare-only|--help]|--list-credentials|--configure|--from-env|--check|--start|--existing-config [--start]|qa <prepare|create|status|destroy>]' >&2; exit 1 ;;
+    *) echo 'Usage: ./install.sh [--update [--prepare-only|--help]|--list-credentials|--configure|--from-env|--check|--start|--stop|--existing-config [--start]|qa <prepare|create|status|destroy|provision|run|results>]' >&2; exit 1 ;;
 esac
 node scripts/credential-wizard.cjs
 bash init-workspace.sh

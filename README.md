@@ -28,6 +28,10 @@ All QA operations now enter through `install.sh`; helper scripts are internal.
 ./install.sh qa status --id QA_ID
 ./install.sh qa create --id QA_ID --schema-dir /absolute/path/to/reviewed-schema --ack-reviewed-schema --approve-create
 ./install.sh qa destroy --id QA_ID --yes
+./install.sh qa provision --id QA_ID --yes
+./install.sh qa run --id QA_ID --suite smoke --yes
+./install.sh qa run --id QA_ID --suite roles --yes
+./install.sh qa results --id QA_ID
 ```
 
 `prepare` prints a unique `qa-...` ID and imports permitted provider credentials

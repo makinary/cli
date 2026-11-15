@@ -6,6 +6,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { load } = require('./workspace-config.cjs');
+const { canonicalRoot, controlPath, stopBody, MAX_BODY } = require('./runtime-control.cjs');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const services = ['market-fit', 'API'];
@@ -20,6 +21,18 @@ async function freePort() {
   await new Promise(resolve => server.close(resolve));
   return port;
 }
+function normalizeLocation(location, targetPort) {
+  if (typeof location !== 'string') return location;
+  // Require a literal loopback authority: no userinfo, host aliases or implicit ports.
+  const match = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\]):(\d+)(?=[/?#]|$)/i.exec(location);
+  if (!match || match[2] !== String(targetPort)) return location;
+  try {
+    const url = new URL(location);
+    // Stripping the origin must never create a scheme-relative redirect.
+    if (url.pathname.startsWith('//')) return location;
+    return url.pathname + url.search + url.hash;
+  } catch { return location; }
+}
 function proxy(getTarget) {
   const server = http.createServer((req, res) => {
     const target = getTarget();
@@ -29,7 +42,9 @@ function proxy(getTarget) {
     const finish = () => { if (!done) { done = true; target.connections--; } };
     const upstream = http.request({ host: '127.0.0.1', port: target.port, method: req.method,
       path: req.url, headers: req.headers }, incoming => {
-      res.writeHead(incoming.statusCode, incoming.headers);
+      const headers = { ...incoming.headers };
+      if (headers.location) headers.location = normalizeLocation(headers.location, target.port);
+      res.writeHead(incoming.statusCode, headers);
       incoming.pipe(res);
     });
     upstream.on('error', () => { if (!res.headersSent) res.writeHead(502); res.end(); });
@@ -102,11 +117,13 @@ function releasePaths(root, release) {
   }));
 }
 async function main(root) {
+  root = canonicalRoot(fs.realpathSync(root));
   const config = load(root);
   const fingerprint = () => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, '.installer', 'credentials.json'))).digest('hex');
   const configHash = fingerprint();
   const activeFile = path.join(root, '.installer', 'active-web.json');
-  const socketPath = path.join(root, '.installer', 'runtime.sock');
+  const socketPath = controlPath(root);
+  const identity = { managed: true, root, configHash, pid: process.pid, instanceId: crypto.randomBytes(16).toString('hex') };
   const paths = {
     'market-fit': healthPath(process.env.MAKINARI_FRONTEND_HEALTH_PATH || '/'),
     API: healthPath(process.env.MAKINARI_API_HEALTH_PATH || '/'),
@@ -114,8 +131,10 @@ async function main(root) {
   let active = null;
   let busy = false;
   let closing = false;
+  let shutdownStarted = false;
   const children = new Set();
   const servers = [];
+  const publicSockets = new Set();
   function launch(command, args, cwd, env) {
     if (closing) throw new Error('Runtime shutting down');
     const target = child(command, args, cwd, env);
@@ -145,18 +164,48 @@ async function main(root) {
     await Promise.all(services.map(repo => stop(previous[repo])));
     for (const repo of services) children.delete(previous[repo]);
   }
-  async function shutdown() {
-    if (closing) return;
+  async function shutdown(code = 0) {
+    if (shutdownStarted) return;
+    shutdownStarted = true;
     closing = true;
-    for (const server of servers) { server.close(); server.closeAllConnections?.(); }
-    await Promise.all([...children].map(stop));
-    process.exit(0);
+    // Keep control listening until owned children and public listeners are stopped.
+    const closed = servers.filter(server => server !== control).map(server => new Promise(resolve => {
+      server.close(resolve); server.closeAllConnections?.();
+    }));
+    for (const socket of publicSockets) socket.destroy();
+    await Promise.all([...closed, ...[...children].map(stop)]);
+    if (servers.includes(control)) await new Promise(resolve => { control.close(resolve); control.closeAllConnections?.(); });
+    process.exit(code);
   }
-  process.once('SIGINT', shutdown);
-  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', () => shutdown());
+  process.once('SIGTERM', () => shutdown());
   const control = http.createServer(async (req, res) => {
     const reply = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-    if (req.method === 'GET' && req.url === '/status') { reply(200, { managed: true, ready: !!active, busy }); return; }
+    const status = () => ({ ...identity, ready: !!active && !closing, busy, closing });
+    if (req.method === 'GET' && req.url === '/status') { reply(200, status()); return; }
+    if (req.method === 'POST' && req.url === '/stop') {
+      try {
+        if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') throw new Error('Stop requires application/json');
+        const chunks = []; let size = 0;
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => { reject(new Error('Stop body timed out')); req.resume(); }, 2000);
+          const finish = callback => value => { clearTimeout(timer); callback(value); };
+          req.on('data', chunk => {
+            size += chunk.length;
+            if (size > MAX_BODY) { finish(reject)(new Error('Stop body too large')); }
+            else chunks.push(chunk);
+          });
+          req.once('end', finish(resolve)); req.once('error', finish(reject));
+        });
+        stopBody(JSON.parse(Buffer.concat(chunks).toString('utf8')), root, identity);
+        if (closing) { reply(409, { error: 'Runtime already stopping' }); return; }
+        closing = true;
+        // Flush the acknowledgement before starting shutdown; root/PID never select a process.
+        res.once('finish', () => shutdown());
+        reply(202, { ...status(), accepted: true });
+      } catch (error) { reply(400, { error: error.message }); }
+      return;
+    }
     if (req.method !== 'POST' || req.url !== '/update') { reply(404, { error: 'Not found' }); return; }
     if (!active || busy || closing) { reply(409, { error: 'Runtime not ready or update in progress' }); return; }
     busy = true;
@@ -181,11 +230,16 @@ async function main(root) {
   });
   try {
     // Never unlink an existing socket: a second start must not hijack a live supervisor.
-    await new Promise((resolve, reject) => { control.once('error', reject); control.listen(socketPath, resolve); });
+    await new Promise((resolve, reject) => {
+      control.once('error', reject);
+      const mask = process.umask(0o077);
+      try { control.listen(socketPath, resolve); } finally { process.umask(mask); }
+    });
     servers.push(control);
     fs.chmodSync(socketPath, 0o600);
     for (const [repo, port] of [['market-fit', config.ports.frontend], ['API', config.ports.api]]) {
       const server = proxy(() => active?.[repo]);
+      server.on('connection', socket => { publicSockets.add(socket); socket.once('close', () => publicSockets.delete(socket)); });
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, resolve); });
       servers.push(server);
     }
@@ -207,10 +261,8 @@ async function main(root) {
     }, 1000);
   } catch (error) {
     console.error(error.message);
-    for (const server of servers) { server.close(); server.closeAllConnections?.(); }
-    await Promise.all([...children].map(stop));
-    process.exit(1);
+    await shutdown(1);
   }
 }
 if (require.main === module) main(path.resolve(__dirname, '..')).catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { proxy, ready, releasePaths, healthPath };
+module.exports = { proxy, ready, releasePaths, healthPath, normalizeLocation };

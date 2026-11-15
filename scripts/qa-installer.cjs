@@ -115,7 +115,7 @@ function main(args = process.argv.slice(2)) {
   if (options.action === 'destroy' && !options.yes) throw new Error('Destruction requires --yes after selecting the exact QA ID');
   if (['provision', 'run', 'results'].includes(options.action)) {
     if (['provision', 'run'].includes(options.action) && !options.yes) throw new Error('QA mutations require --yes and the exact environment ID');
-    if (options.action === 'run' && !['smoke', 'buyer', 'roles', 'regression'].includes(options.suite)) throw new Error('Select --suite smoke|buyer|roles|regression');
+    if (options.action === 'run' && !['smoke', 'buyer', 'roles', 'regression', 'project-lifecycle', 'account-lifecycle', 'procurement', 'subsystems'].includes(options.suite)) throw new Error('Select --suite smoke|buyer|roles|regression|project-lifecycle|account-lifecycle|procurement|subsystems');
     const args = [path.join(root, 'scripts/qa-tests.py'), options.action, '--qa-id', options.id];
     if (options.suite) args.push('--suite', options.suite);
     run('python3', args);
