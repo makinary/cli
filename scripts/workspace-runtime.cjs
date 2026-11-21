@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { load } = require('./workspace-config.cjs');
 const { canonicalRoot, controlPath, stopBody, MAX_BODY } = require('./runtime-control.cjs');
+const { waitForLocalTemporal } = require('./temporal-readiness.cjs');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const services = ['market-fit', 'API'];
@@ -243,7 +244,10 @@ async function main(root) {
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, resolve); });
       servers.push(server);
     }
-    if (config.temporal === 'local') launch('temporal', ['server', 'start-dev', '--ui-port', '8080', '--db-filename', 'temporal.db'], root);
+    if (config.temporal === 'local') {
+      const temporal = launch('temporal', ['server', 'start-dev', '--ip', '127.0.0.1', '--port', '7233', '--ui-port', '8080', '--db-filename', 'temporal.db'], root);
+      await waitForLocalTemporal(temporal, () => closing);
+    }
     for (const queue of ['critical', 'mail', 'default']) {
       launch('tsx', ['src/scripts/start-worker.ts'], path.join(root, 'Workflows'), { WORKFLOW_TASK_QUEUE: queue });
     }

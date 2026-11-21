@@ -1,5 +1,18 @@
 # Disposable Azure QA
 
+## Local Temporal worker admission — 2026-11-16
+
+The fresh repaired QA replay reached healthy Supabase, but workers raced the
+local Temporal server's transport startup and exited with connection refused.
+The supervisor now binds Temporal explicitly to loopback port 7233 and waits up
+to 60 seconds for that socket before launching workers. It fails on local child
+exit, runtime shutdown or timeout; worker SDK connections still perform the real
+Temporal handshake. It does not retry business operations or adopt external
+Temporal settings. New delayed-listener/exit/shutdown/timeout checks plus existing
+runtime tests passed 61 cases. The two-file change was uploaded as a reviewed
+overlay to exact QA `qa-1794712685585-f5501631`; frontend/API then returned 200.
+This overlay is not yet published and is not a clean-installer release certificate.
+
 ## Supabase CLI compatibility repair — 2026-11-14
 
 The disposable attempt `qa-1794707562780-19f73f1e` created its Azure VM but
