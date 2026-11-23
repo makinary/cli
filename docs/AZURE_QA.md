@@ -1,5 +1,16 @@
 # Disposable Azure QA
 
+## Bounded Automation runbook publication
+
+The Azure CLI can wait for a response body after Azure has already accepted a
+runbook draft upload. To avoid blocking before expiry is configured, the installer
+now uses Azure's `text/powershell` media type and handles the upload and publish
+responses by status without consuming the body. It uses bounded readbacks at the
+fixed ARM endpoints to verify the exact draft and published content, not a
+response-provided URL. The runbook must be `Published` before its schedule is
+linked and dry-run. Unconfirmed expiry still blocks VM creation and triggers
+exact-group cleanup.
+
 ## Local Temporal worker admission — 2026-11-16
 
 The fresh repaired QA replay reached healthy Supabase, but workers raced the

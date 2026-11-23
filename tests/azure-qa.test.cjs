@@ -31,6 +31,51 @@ test('Azure Python syntax parses without contacting Azure', () => {
   const result = spawnSync('python3', ['-c', 'import ast,pathlib,sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())', file]);
   expect(result.status).toBe(0);
 });
+test('runbook operations use the PowerShell media type and verify exact content on fixed ARM paths', () => {
+  const script = `
+import runpy,sys
+module=runpy.run_path(sys.argv[1]); g=module['publish_cleanup_runbook'].__globals__
+path='/subscriptions/example/runbooks/expire-qa'; api='?api-version=2023-11-01'
+calls=[]
+class Response:
+    status=202
+    def __enter__(self): return self
+    def __exit__(self,*args): pass
+    def read(self,*args): raise AssertionError('Asynchronous body must not be read')
+class Connection:
+    def __init__(self,host,timeout): assert host=='management.azure.com' and timeout==20
+    def request(self,method,path,body,headers): calls.append((method,path,body,headers))
+    def getresponse(self): return Response()
+    def close(self): calls.append('closed')
+g['http'].client.HTTPSConnection=Connection
+assert module['runbook_request']('PUT',path,'synthetic-token',b'runbook')==(202,None)
+assert calls==[('PUT',path,b'runbook',{'Authorization':'Bearer synthetic-token','Content-Type':'text/powershell'}),'closed']
+calls.clear(); g['time'].sleep=lambda _:None
+content=b'runbook'+bytes([10])
+responses=iter([(202,None),(404,None),(200,b'wrong'),(200,content),(202,None),(200,b'wrong'),(200,content)])
+def request(method,path,token,content=None,read_limit=0):
+    calls.append((method,path,token,content,read_limit)); return next(responses)
+g['runbook_request']=request
+module['publish_cleanup_runbook'](path,api,'synthetic-token',content)
+draft=path+'/draft/content'+api; published=path+'/content'+api
+assert [(c[0],c[1]) for c in calls]==[('PUT',draft),('GET',draft),('GET',draft),('GET',draft),('POST',path+'/publish'+api),('GET',published),('GET',published)]
+assert all(c[4]==len(content)*2+4 for c in calls if c[0]=='GET')
+for response in [(302,None),(500,None)]:
+    calls.clear(); responses=iter([response]);
+    try: module['publish_cleanup_runbook'](path,api,'synthetic-token',content)
+    except RuntimeError: pass
+    else: raise AssertionError('Failed or redirected operation accepted')
+    assert len(calls)==1
+calls.clear(); responses=iter([(202,None),(200,b'wrong')]); ticks=iter([0,1,91]); g['time'].monotonic=lambda:next(ticks)
+try: module['publish_cleanup_runbook'](path,api,'synthetic-token',content)
+except RuntimeError as error: assert 'did not confirm the exact runbook content in time' in str(error)
+else: raise AssertionError('Expired operation accepted')
+assert [c[0] for c in calls]==['PUT','GET']
+`;
+  const result = spawnSync('python3', ['-c', script, path.join(__dirname, '../scripts/azure-qa.py')], { encoding: 'utf8' });
+  expect(result.stderr).toBe('');
+  expect(result.status).toBe(0);
+});
 test('private credential transfer verifies SSH host key through Azure and refuses unverified VMs', () => {
   const file = path.join(__dirname, '../scripts/azure-qa-upload.py');
   const text = fs.readFileSync(file, 'utf8');
