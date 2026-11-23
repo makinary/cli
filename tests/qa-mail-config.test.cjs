@@ -3,7 +3,7 @@ const { spawnSync } = require('node:child_process');
 
 test('QA normalizes legacy mail for CLI 3.x, preserves modern settings and rejects ambiguous mail before writing', () => {
   const script = `
-import pathlib,runpy,sys,tempfile,tomllib
+import os,pathlib,runpy,stat,sys,tempfile,tomllib
 m=runpy.run_path(sys.argv[1])
 base='''project_id = "makinari-qa"
 [db.seed]
@@ -25,7 +25,9 @@ with tempfile.TemporaryDirectory() as temp:
         original=base.replace('MAIL',section)
         source=folder/'original.toml'; source.write_text(original)
         target=folder/'config.toml'; target.write_text(original)
-        m['configure'](target)
+        previous=os.umask(0o077)
+        try: m['configure'](target)
+        finally: os.umask(previous)
         assert source.read_text()==original
         cfg=tomllib.loads(target.read_text())
         assert 'inbucket' not in cfg
@@ -34,6 +36,10 @@ with tempfile.TemporaryDirectory() as temp:
         assert cfg['auth']['email']['enable_confirmations'] is True
         assert cfg['auth']['additional_redirect_urls']==m['REDIRECTS']
         assert set(cfg['auth']['email']['template'])=={'confirmation','recovery'}
+        for kind in ['confirmation','recovery']:
+            template=folder/'templates'/('qa-'+kind+'.html')
+            assert stat.S_IMODE(template.stat().st_mode)==0o644
+            assert '{{ .TokenHash }}' in template.read_text()
     legacy=base.replace('MAIL','inbucket')
     invalid=[legacy+'\\n[local_smtp]\\nenabled=true\\nport=54324\\n',
              legacy.replace('[inbucket]','[unknown_mail]'),

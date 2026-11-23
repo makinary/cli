@@ -30,7 +30,7 @@ const ENDPOINTS = ['/', '/auth', '/auth/confirm', '/auth/callback', '/auth/reset
   '/catalog', '/content', '/leads', '/orders', '/billing', '/settings', '/marketplace',
   '/cart/checkout', '/buyer', '/buyer/orders', '/buyer/quotes', '/buyer/library',
   '/buyer/subscriptions', '/api/status', '/api/leads', '/api/orders', '/api/notifications', '/api/skills',
-  '/api/trends/reddit', '/api/trends/google', '/_next/static/[redacted]',
+  '/api/trends/reddit', '/api/trends/google', '/api/images/modules/profile', '/_next/static/[redacted]',
   ...['q', 'so', 'i', 'vb', 'shop', 'book'].map(prefix => `/${prefix}/[redacted]`)];
 // Fixed reviewed harness names: even a real file with a token-bearing name must not
 // become an output string. New authored harness files require explicit review here.
@@ -56,13 +56,15 @@ const SCRIPT_STEMS = ['run', 'options', 'common', 'report', 'ci-policy', 'smoke-
     'plan'].map(name => `provision-qa-${name}`)];
 const SOURCE_PATHS = ['auth.setup.ts', 'playwright.config.ts', 'tests/auth/buyer.setup.ts',
   'tests/smoke/public.spec.ts', 'tests/smoke/workspace.spec.ts',
+  'tests/smoke/account-reads.spec.ts', 'tests/smoke/module-reads.spec.ts', 'tests/smoke/visits.spec.ts',
   'tests/projects/lifecycle.spec.ts', 'tests/accounts/lifecycle.spec.ts',
   'tests/procurement/tender-ui.spec.ts', 'tests/procurement/participation.spec.ts',
   'tests/procurement/sealed.spec.ts', 'tests/procurement/boundaries.spec.ts',
   'tests/procurement/mapped-order.spec.ts',
   'tests/procurement/certification-sharing.spec.ts', 'tests/procurement/invitations-amendment.spec.ts',
   'tests/procurement/rejection.spec.ts',
-  'tests/subsystems/pos-customer.spec.ts', 'tests/subsystems/lead-quotation.spec.ts',
+  'tests/subsystems/pos-customer.spec.ts', 'tests/subsystems/pos-customer-cancel.spec.ts',
+  'tests/subsystems/lead-quotation.spec.ts',
   'tests/boundaries/tenant-permissions.spec.ts', ...SUPPORT_STEMS.map(name => `tests/support/${name}.ts`),
   ...SCRIPT_STEMS.map(name => `scripts/e2e/${name}.cjs`),
   ...YAML_STEMS.flatMap(name => [`tests/${name}.test.yaml`, `tests/${name}.yaml.spec.ts`])];

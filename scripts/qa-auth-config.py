@@ -84,4 +84,7 @@ def configure(config_path):
                 + '&amp;type=' + email_type + '&amp;returnTo=%2Fprojects')
         file.write_text('<!doctype html><html><body><a href="' + link
                         + '">Continue ' + kind + '</a></body></html>\n')
+        # Kong serves these static templates from a read-only bind mount under
+        # a different UID. They contain template expressions, never credentials.
+        file.chmod(0o644)
     config_path.write_text(updated)

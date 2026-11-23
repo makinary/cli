@@ -211,7 +211,11 @@ The packaged `supabase/templates/qa-confirmation.html` and `qa-recovery.html` li
 and the same URL with `type=recovery`. This uses the application's manual confirmation
 flow rather than stock hash-session links. The original schema config/manifest and
 applied migrations are unchanged. No override is applied to existing VMs or production
-Auth settings. An already initialized environment with confirmations disabled still
+Auth settings by the installer. The generated static files explicitly use mode
+`0644` inside the private QA project so the Kong container can read them even when
+packaging uses `umask 077`. They do not contain rendered tokens or credentials.
+Unreadable files return 403 and Auth falls back to stock confirmation links.
+An already initialized environment with confirmations disabled still
 cannot pass account signup acceptance; only a newly approved, freshly packaged QA
 initialization receives these settings. Template delivery and runtime acceptance
 remain unverified live; local tests do not claim a browser lifecycle pass.

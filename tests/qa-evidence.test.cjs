@@ -82,7 +82,8 @@ const modulePaths = ['tests/procurement/tender-ui.spec.ts', 'tests/procurement/p
   'tests/support/procurement-fixtures.ts', 'tests/support/procurement-ui.ts', 'tests/support/subsystem-crossflows.ts',
   'tests/procurement/mapped-order.spec.ts', 'tests/procurement/certification-sharing.spec.ts',
   'tests/procurement/invitations-amendment.spec.ts', 'tests/procurement/rejection.spec.ts',
-  'tests/support/procurement-expansion.ts'];
+  'tests/support/procurement-expansion.ts', 'tests/subsystems/pos-customer-cancel.spec.ts',
+  'tests/smoke/account-reads.spec.ts', 'tests/smoke/module-reads.spec.ts', 'tests/smoke/visits.spec.ts'];
 
 test('source discovery accepts exact reviewed module files only, not directory patterns or symlinks', () => {
   for (const file of modulePaths) write(file, '// reviewed native harness\n');
@@ -99,6 +100,11 @@ test('source discovery accepts exact reviewed module files only, not directory p
   fs.rmSync(path.join(root, 'tests/subsystems'), { recursive: true });
   fs.symlinkSync(path.join(root, 'tests/procurement'), path.join(root, 'tests/subsystems'));
   expect([...sourceCatalog(root).keys()].some(file => file.startsWith('tests/subsystems/'))).toBe(false);
+});
+
+test('shared profile image diagnostics allow only the fixed endpoint, without query data', () => {
+  expect(safeEndpoint('http://127.0.0.1:3000/api/images/modules/profile?secret=value')).toBe('/api/images/modules/profile');
+  expect(safeEndpoint('http://127.0.0.1:3000/api/images/modules/private-token-XYZ')).toBeNull();
 });
 
 test.each(['procurement', 'subsystems'])('%s exact native runs preserve safe project/source enums and reject unknown paths', suite => {
